@@ -1,0 +1,17 @@
+{
+  "assume_roles": {
+    "logical_name_for_stsAssumeRole": {
+      "aws_profile": "aws_profile_to_use",
+      "aws_account": "account_number_of_account_where_to_assume_the_role",
+      "aws_mfa_arn": "arn_of_user_mfa_devoce",
+      "aws_role": "name_of_role_to_assume"
+    },
+    "mycompany-prod-read": {
+      "aws_profile": "mycompany-bastion",
+      "aws_account": "123456789012",
+      "aws_mfa_arn": "arn:aws:iam::210987654321:mfa/myuser",
+      "aws_role": "read"
+    },
+    ...
+  }
+}

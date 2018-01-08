@@ -1,0 +1,44 @@
+#! /bin/bash
+
+export CONF="${HOME}/.assumerole"
+AVAILABLE_PROFILES=$(jq ".assume_roles | to_entries[] | .key"  ${CONF} | tr -d '"')
+
+echo "Select from these available accounts:"
+echo ${AVAILABLE_PROFILES}
+
+read -p "Account:   " aws_account
+read -p "MFA token: " aws_token
+
+
+PROFILE=$(jq ".assume_roles[\"${aws_account}\"][\"aws_profile\"]"  ${CONF} | tr -d '"')
+ACCOUNT=$(jq ".assume_roles[\"${aws_account}\"][\"aws_account\"]"  ${CONF} | tr -d '"')
+   ROLE=$(jq ".assume_roles[\"${aws_account}\"][\"aws_role\"]"     ${CONF} | tr -d '"')
+MFA_ARN=$(jq ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF} | tr -d '"')
+
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN
+
+export AWS_PROFILE=${PROFILE}
+
+JSON=$(aws sts assume-role \
+         --role-arn arn:aws:iam::${ACCOUNT}:role/${ROLE} \
+         --role-session-name ${ROLE}${$} \
+         --duration-seconds 3600 \
+         --serial-number ${MFA_ARN} \
+         --token-code ${aws_token} 2>/dev/null) || { echo "Error assuming role"; exit 1; }
+
+
+    AWS_ACCESS_KEY_ID=$(echo ${JSON} | jq ".Credentials[\"AccessKeyId\"]" | tr -d '"')
+AWS_SECRET_ACCESS_KEY=$(echo ${JSON} | jq ".Credentials[\"SecretAccessKey\"]" | tr -d '"')
+    AWS_SESSION_TOKEN=$(echo ${JSON} | jq ".Credentials[\"SessionToken\"]" | tr -d '"')
+
+unset AWS_PROFILE
+
+export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+
+echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
+echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+echo "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
