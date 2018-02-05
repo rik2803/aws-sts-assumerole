@@ -1,5 +1,57 @@
 # assumerole: A bash script to easily assume AWS roles using Temporary Security Credentials and MFA
 
+The script uses the standard AWS credentials file `~/.aws/credentials` and it's own configuration file
+`~/.assumerole` to assume a role on an account (defined in `~/.assumerole`), using the AWS profile in
+~/.aws/credentials` by the `aws_profile` property.
+
+An example to illustrate this.
+
+The AWS credentials file `~/.aws/credentials` contains:
+
+```$xslt
+[acme-bastion]
+aws_access_key_id = AKIAXXXXXXXXXXXXXXXX
+aws_secret_access_key = bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+region = eu-central-1
+```
+
+The `~/.assumerole` file contains this:
+
+```$xslt
+{
+  "assume_roles": {
+    "acme-sandbox-read": {
+      "aws_profile": "acme-bastion",
+      "aws_account": "123456789012",
+      "aws_mfa_arn": "arn:aws:iam::210987654321:mfa/rtytgat",
+      "aws_role": "read"
+    },
+    ...
+}
+```
+
+And running the command:
+
+```$xslt
+$ source /usr/local/bin/assumerole
+Select from these available accounts:
+... acme-sandbox-read acme-otheraccount-read ...
+Account:   acme-sandbox-read
+MFA token: 123456
+export AWS_ACCESS_KEY_ID=XXXXXXXXXXXXXXXXXXXX
+export AWS_SECRET_ACCESS_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+export AWS_SESSION_TOKEN=aaaaaaa/a/very/long/string/aaaaaaaaaa
+```
+
+Does the following:
+
+* use the profile `acme-bastion`
+* if the user has permissions to assume the role `read` on account `123456789012` ...
+* ... temporary credentials are requested for that account
+* extract the relevant properties from the returned JSON file
+* sets the environment varialbes (only useful when using `source assumerole` or `. assumerole`)
+* and also prints the `export` commands to `stdout` for the user to copy/paste
+
 ## Pre-requisites
 
 The script uses `jq` to parse the JSON configuration file `~/.assumerole`

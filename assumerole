@@ -1,19 +1,28 @@
 #! /bin/bash
 
+
+UnsetEnv() {
+  unset AWS_ACCESS_KEY_ID
+  unset AWS_SECRET_ACCESS_KEY
+  unset AWS_SESSION_TOKEN
+}
+
 export CONF="${HOME}/.assumerole"
 AVAILABLE_PROFILES=$(jq ".assume_roles | to_entries[] | .key"  ${CONF} | tr -d '"')
 
 echo "Select from these available accounts:"
-echo ${AVAILABLE_PROFILES}
+for PROFILE in ${AVAILABLE_PROFILES}
+do
+  echo "  ${PROFILE}"
+done
 
 read -p "Account:   " aws_account
 read -p "MFA token: " aws_token
 
-
-PROFILE=$(jq ".assume_roles[\"${aws_account}\"][\"aws_profile\"]"  ${CONF} | tr -d '"')
-ACCOUNT=$(jq ".assume_roles[\"${aws_account}\"][\"aws_account\"]"  ${CONF} | tr -d '"')
-   ROLE=$(jq ".assume_roles[\"${aws_account}\"][\"aws_role\"]"     ${CONF} | tr -d '"')
-MFA_ARN=$(jq ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF} | tr -d '"')
+PROFILE=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
+ACCOUNT=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
+   ROLE=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
+MFA_ARN=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
 
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
@@ -26,12 +35,11 @@ JSON=$(aws sts assume-role \
          --role-session-name ${ROLE}${$} \
          --duration-seconds 3600 \
          --serial-number ${MFA_ARN} \
-         --token-code ${aws_token} 2>/dev/null) || { echo "Error assuming role"; exit 1; }
+         --token-code ${aws_token} 2>/dev/null) || { echo "Error assuming role"; }
 
-
-    AWS_ACCESS_KEY_ID=$(echo ${JSON} | jq ".Credentials[\"AccessKeyId\"]" | tr -d '"')
-AWS_SECRET_ACCESS_KEY=$(echo ${JSON} | jq ".Credentials[\"SecretAccessKey\"]" | tr -d '"')
-    AWS_SESSION_TOKEN=$(echo ${JSON} | jq ".Credentials[\"SessionToken\"]" | tr -d '"')
+    AWS_ACCESS_KEY_ID=$(echo ${JSON} | jq --raw-output ".Credentials[\"AccessKeyId\"]")
+AWS_SECRET_ACCESS_KEY=$(echo ${JSON} | jq --raw-output ".Credentials[\"SecretAccessKey\"]")
+    AWS_SESSION_TOKEN=$(echo ${JSON} | jq --raw-output ".Credentials[\"SessionToken\"]")
 
 unset AWS_PROFILE
 
@@ -39,6 +47,25 @@ export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
 export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
 export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
 
-echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
-echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
-echo "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
+JSONCALLERIDENTITYACCOUNT=$(aws sts get-caller-identity | jq --raw-output '.Account')
+JSONCALLERIDENTITYROLEARN=$(aws sts get-caller-identity | jq --raw-output '.Arn')
+
+if [[ ${JSONCALLERIDENTITYACCOUNT} == ${ACCOUNT} ]]
+then
+  echo "INFO: Account of assumed role ${JSONCALLERIDENTITYACCOUNT} matches desired account ${ACCOUNT}"
+  if [[ ${JSONCALLERIDENTITYROLEARN} == */${ROLE}/* ]]
+  then
+    echo "INFO: Assumed role ${JSONCALLERIDENTITYROLEARN} matches desired role ${ROLE}"
+    echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
+    echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+    echo "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
+  else
+    echo "ERROR: Assumed role ${JSONCALLERIDENTITYROLEARN} does not match desired role ${ROLE}"
+    echo "ERROR: Unsetting environment"
+    UnsetEnv
+  fi
+else
+  echo "ERROR: Account of assumed role ${JSONCALLERIDENTITYACCOUNT} does not match desired account ${ACCOUNT}"
+  echo "ERROR: Unsetting environment"
+  UnsetEnv
+fi
