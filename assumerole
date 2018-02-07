@@ -7,6 +7,10 @@ UnsetEnv() {
   unset AWS_SESSION_TOKEN
 }
 
+# Start with unsetting the current AWS_* envvars to avoid namespace pollution
+UnsetEnv
+
+
 export CONF="${HOME}/.assumerole"
 AVAILABLE_PROFILES=$(jq ".assume_roles | to_entries[] | .key"  ${CONF} | tr -d '"')
 
@@ -40,6 +44,7 @@ JSON=$(aws sts assume-role \
     AWS_ACCESS_KEY_ID=$(echo ${JSON} | jq --raw-output ".Credentials[\"AccessKeyId\"]")
 AWS_SECRET_ACCESS_KEY=$(echo ${JSON} | jq --raw-output ".Credentials[\"SecretAccessKey\"]")
     AWS_SESSION_TOKEN=$(echo ${JSON} | jq --raw-output ".Credentials[\"SessionToken\"]")
+       AWS_EXPIRATION=$(echo ${JSON} | jq --raw-output ".Credentials[\"Expiration\"]")
 
 unset AWS_PROFILE
 
@@ -56,6 +61,7 @@ then
   if [[ ${JSONCALLERIDENTITYROLEARN} == */${ROLE}/* ]]
   then
     echo "INFO: Assumed role ${JSONCALLERIDENTITYROLEARN} matches desired role ${ROLE}"
+    echo "INFO: The temporary credentials expire on ${AWS_EXPIRATION}"
     echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
     echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
     echo "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
