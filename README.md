@@ -59,6 +59,10 @@ The script uses `jq` to parse the JSON configuration file `~/.assumerole`
 ## Usage
 
 ```
+$ source assumerole profile maftoken
+```
+
+```
 $ . ./assumerole 
 Select from these available accounts:
 cust1-prod-read cust1-staging-power

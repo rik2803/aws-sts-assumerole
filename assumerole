@@ -7,21 +7,39 @@ UnsetEnv() {
   unset AWS_SESSION_TOKEN
 }
 
+SelectProfile() {
+  echo "Select from these available accounts:"
+  for PROFILE in ${AVAILABLE_PROFILES}
+  do
+    echo "  ${PROFILE}"
+  done
+  
+  read -p "Account:   " aws_account
+}
+
 # Start with unsetting the current AWS_* envvars to avoid namespace pollution
 UnsetEnv
 
 
 export CONF="${HOME}/.assumerole"
-AVAILABLE_PROFILES=$(jq ".assume_roles | to_entries[] | .key"  ${CONF} | tr -d '"')
+AVAILABLE_PROFILES=$(jq --raw-output ".assume_roles | to_entries[] | .key"  ${CONF} | tr '\n' ' ')
 
-echo "Select from these available accounts:"
-for PROFILE in ${AVAILABLE_PROFILES}
-do
-  echo "  ${PROFILE}"
-done
+if [[ -n ${1} && ${AVAILABLE_PROFILES} == *${1}* ]]
+then
+  # Argument passed on commandline is a valid profile
+  echo "INFO: The profile ${1} passed on the commandline is a valid profile."
+  echo "      Continuing to request the temporary credentials."
+  aws_account=${1}
+else
+  aws_account=$(SelectProfile)
+fi
 
-read -p "Account:   " aws_account
-read -p "MFA token: " aws_token
+if [[ -n ${2} ]]
+then
+  aws_token=${2}
+else
+  read -p "MFA token: " aws_token
+fi
 
 PROFILE=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
 ACCOUNT=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
