@@ -31,7 +31,7 @@ then
   echo "      Continuing to request the temporary credentials."
   aws_account=${1}
 else
-  aws_account=$(SelectProfile)
+  SelectProfile
 fi
 
 if [[ -n ${2} ]]
