@@ -11,10 +11,7 @@ SelectProfile() {
   echo "Select from these available accounts:"
   echo ""
 
-  for PROFILE in ${AVAILABLE_PROFILES}
-  do
-    echo "${PROFILE}"
-  done
+  echo "${AVAILABLE_PROFILES}"
 
   printf "\nAccount:   "
   read aws_account
