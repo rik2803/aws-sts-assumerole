@@ -80,6 +80,23 @@ The user has to enter 2 values:
 * The account: this is a account string defined in the configuration file `~/.assumerole`
 * MFA token: the current value of the MFA token used as multi factor device
 
+## Environment Variables
+
+### `AWS_STS_DURATION_SECONDS`
+
+Set this envvar to the number of seconds you wish the temporary credentials to be valid.
+
+Mind though, the assumed role should be configured to allow at least the requested session
+duration. If the role's session duration is less than what you specify here, the
+`assumerole` operation will fail.
+
+To increase the role's maximume CLI/API session duration, use the AWS Console or this CLI
+command:
+
+```
+aws iam update-role -–role-name name-of-the-role -–max-session-duration 14400
+```
+
 ## The configuration file `~/.assumerole`
 
 This is an example configuration file:
