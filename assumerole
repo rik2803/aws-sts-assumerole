@@ -50,6 +50,7 @@ MFA_ARN=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" $
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 unset AWS_SESSION_TOKEN
+unset AWS_ACCOUNT
 
 export AWS_PROFILE=${PROFILE}
 
@@ -70,6 +71,7 @@ unset AWS_PROFILE
 export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
 export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
 export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+export AWS_ACCOUNT=${aws_account}
 
 JSONCALLERIDENTITYACCOUNT=$(aws sts get-caller-identity | jq --raw-output '.Account')
 JSONCALLERIDENTITYROLEARN=$(aws sts get-caller-identity | jq --raw-output '.Arn')
