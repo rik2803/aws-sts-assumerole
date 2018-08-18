@@ -34,6 +34,18 @@ else
   SelectProfile
 fi
 
+### Check config before asking for the MFA token
+PROFILE=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
+ACCOUNT=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
+   ROLE=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
+MFA_ARN=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
+
+[[ "${PROFILE}" = "null" ]] && { echo "aws_profile missing for account ${aws_account} in ${CONF}"; exit 1; }
+[[ "${ACCOUNT}" = "null" ]] && { echo "aws_account missing for account ${aws_account} in ${CONF}"; exit 1; }
+[[ "${ROLE}" = "null" ]]    && { echo "aws_role missing for account ${aws_account} in ${CONF}"; exit 1; }
+[[ "${MFA_ARN}" = "null" ]] && { echo "aws_mfa_arn missing for account ${aws_account} in ${CONF}"; exit 1; }
+
+### Get MFA token from commandline or ask for it
 if [[ -n ${2} ]]
 then
   aws_token=${2}
@@ -41,11 +53,6 @@ else
   printf "MFA token: "
   read aws_token
 fi
-
-PROFILE=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
-ACCOUNT=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
-   ROLE=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
-MFA_ARN=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
 
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
