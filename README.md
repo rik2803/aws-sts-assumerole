@@ -2,7 +2,7 @@
 
 The script uses the standard AWS credentials file `~/.aws/credentials` and it's own configuration file
 `~/.assumerole` to assume a role on an account (defined in `~/.assumerole`), using the AWS profile in
-~/.aws/credentials` by the `aws_profile` property.
+`~/.aws/credentials` by the `aws_profile` property.
 
 An example to illustrate this.
 
@@ -54,7 +54,8 @@ Does the following:
 
 ## Pre-requisites
 
-The script uses `jq` to parse the JSON configuration file `~/.assumerole`
+* The script uses `jq` to parse the JSON configuration file `~/.assumerole`
+* The AWS CLI, see [here](https://docs.aws.amazon.com/cli/latest/userguide/installing.html) on how to install this
 
 ## Usage
 
