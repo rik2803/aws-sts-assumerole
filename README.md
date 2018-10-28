@@ -33,9 +33,13 @@ The `~/.assumerole` file contains this:
 And running the command:
 
 ```$xslt
-$ source /usr/local/bin/assumerole
+$ /usr/local/bin/assumerole
 Select from these available accounts:
-... acme-sandbox-read acme-otheraccount-read ...
+... 
+acme-sandbox-read
+acme-otheraccount-read
+...
+
 Account:   acme-sandbox-read
 MFA token: 123456
 export AWS_ACCESS_KEY_ID=XXXXXXXXXXXXXXXXXXXX
@@ -45,12 +49,18 @@ export AWS_SESSION_TOKEN=aaaaaaa/a/very/long/string/aaaaaaaaaa
 
 Does the following:
 
-* use the profile `acme-bastion`
+* use the AWS profile `acme-bastion`
 * if the user has permissions to assume the role `read` on account `123456789012` ...
 * ... temporary credentials are requested for that account
 * extract the relevant properties from the returned JSON file
-* sets the environment varialbes (only useful when using `source assumerole` or `. assumerole`)
+* sets the environment variables
 * and also prints the `export` commands to `stdout` for the user to copy/paste
+* start a new shell
+
+In the new shell, the permissions linked to the role that is being assumed is available for
+the `aws` CLI.
+
+Exiting the shell will unset the credential environment variables.
 
 ## Pre-requisites
 
@@ -81,6 +91,20 @@ The user has to enter 2 values:
 * The account: this is a account string defined in the configuration file `~/.assumerole`
 * MFA token: the current value of the MFA token used as multi factor device
 
+## Bash commandline completion
+
+Bash commandline completion was introduced in version v0.1.1 and can be used to complete
+account names.
+
+For command completion to work, add these lines to your `~/.bash_profile` file:
+
+```bash
+# Bash completion for assumerole
+_assumerole_accounts=$(assumerole accountlist)
+complete -W "${_assumerole_accounts}" 'assumerole'
+```
+
+You need to star a new shell (or source the `~/.bash_profile` file) before command completion will be avialable.
 ## Environment Variables
 
 ### `AWS_STS_DURATION_SECONDS`
