@@ -1,5 +1,10 @@
 # Release notes
 
+## `0.1.2` (20181209)
+
+* Set custom environment variables from `environment` list for your profiles
+* Load a private key if `sshkey` is defined for a profile
+
 ## `0.1.1` (20181028)
 
 * No more need to `source` the script because the script will start a new `bash`
