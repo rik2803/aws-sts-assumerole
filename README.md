@@ -24,7 +24,17 @@ The `~/.assumerole` file contains this:
       "aws_profile": "acme-bastion",
       "aws_account": "123456789012",
       "aws_mfa_arn": "arn:aws:iam::210987654321:mfa/rtytgat",
-      "aws_role": "read"
+      "aws_role": "read",
+      "environment": [
+        {
+          "name": "MYVAR1",
+          "value": "MYVALUE1"
+        },
+        {
+          "name": "MYVAR2",
+          "value": "MYVALUE2"
+        }
+      ]
     },
     ...
 }
@@ -55,6 +65,8 @@ Does the following:
 * extract the relevant properties from the returned JSON file
 * sets the environment variables
 * and also prints the `export` commands to `stdout` for the user to copy/paste
+* sets the environment variables if any are defined in the configuration
+  for that profile
 * start a new shell
 
 In the new shell, the permissions linked to the role that is being assumed is available for
@@ -122,6 +134,36 @@ command:
 aws iam update-role -–role-name name-of-the-role -–max-session-duration 14400
 ```
 
+### Custom profile environment variables
+
+When required, custom environment variables can be defined in the configuration
+file. When that profile is activated, the environment variables are set before
+the new shell is spawned.
+
+To define custom environment variables, add a list `environment` to the profile,
+for example:
+
+```yaml
+{
+  "assume_roles": {
+    "acme-sandbox-read": {
+       ...
+       "environment": [
+        {
+          "name": "MYVAR1",
+          "value": "MYVALUE1"
+        },
+        {
+          "name": "MYVAR2",
+          "value": "MYVALUE2"
+        }
+      ]
+    },
+    ...
+}
+
+```
+
 ## The configuration file `~/.assumerole`
 
 This is an example configuration file:
@@ -139,7 +181,17 @@ This is an example configuration file:
       "aws_profile": "mycompany-bastion",
       "aws_account": "123456789012",
       "aws_mfa_arn": "arn:aws:iam::210987654321:mfa/myuser",
-      "aws_role": "read"
+      "aws_role": "read",
+      "environment": [
+        {
+          "name": "MYVAR1",
+          "value": "MYVALUE1"
+        },
+        {
+          "name": "MYVAR2",
+          "value": "MYVALUE2"
+        }
+      ]
     },
     ...
   }
@@ -171,3 +223,8 @@ The name of the role to assume on the remote account.
 The ARN of the MFA device of the user on the account that will assume the role. This can be
 a _bastion_ account, where only user are defined, and groups that allow `sts::AssumeRole`
 permissions for a selection of accounts.
+
+### `environment`
+
+A list of dicts with `name` and `value` keys, used to set custom environment in the
+spawned shell.
