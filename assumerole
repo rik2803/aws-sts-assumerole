@@ -103,7 +103,7 @@ then
     echo "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
     echo "INFO: Starting a new shell"
     export aws_account
-    PS1="[\${aws_account}] \h:\W \u\$ " bash
+    ${SHELL}
   else
     echo "ERROR: Assumed role ${JSONCALLERIDENTITYROLEARN} does not match desired role ${ROLE}"
     echo "ERROR: Unsetting environment"
