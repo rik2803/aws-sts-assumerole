@@ -175,7 +175,8 @@ This is an example configuration file:
       "aws_profile": "aws_profile_to_use",
       "aws_account": "account_number_of_account_where_to_assume_the_role",
       "aws_mfa_arn": "arn_of_user_mfa_devoce",
-      "aws_role": "name_of_role_to_assume"
+      "aws_role": "name_of_role_to_assume",
+      "sshkey": "/full/path/to/private/key/for/this/profile"
     },
     "mycompany-prod-read": {
       "aws_profile": "mycompany-bastion",
@@ -228,3 +229,7 @@ permissions for a selection of accounts.
 
 A list of dicts with `name` and `value` keys, used to set custom environment in the
 spawned shell.
+
+### `sshkey`
+
+Private key to load when activating the profile.

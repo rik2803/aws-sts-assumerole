@@ -46,6 +46,7 @@ ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]
    ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
 MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
     ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \"\n\"" ${CONF})
+ SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
 
 [[ "${PROFILE}" = "null" ]] && { echo "aws_profile missing for account ${aws_account} in ${CONF}"; exit 1; }
 [[ "${ACCOUNT}" = "null" ]] && { echo "aws_account missing for account ${aws_account} in ${CONF}"; exit 1; }
@@ -88,7 +89,19 @@ export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
 export AWS_ACCOUNT=${aws_account}
 
 ### Set environment
-[[ -n ${ENV} ]] && eval $(echo ${ENV})
+[[ -n ${ENV} ]] && {
+  echo "INFO: Setting environment for profile ${PROFILE}"
+  eval $(echo ${ENV})
+}
+
+### Add sshkey
+[[ -n ${SSHKEY} ]] && {
+  if ! ssh-add -l | grep -q $(basename ${SSHKEY})
+  then
+    echo "INFO: Adding key ${SSHKEY} for profile ${PROFILE}"
+    ssh-add ${SSHKEY}
+  fi
+}
 
 JSONCALLERIDENTITYACCOUNT=$(aws sts get-caller-identity | jq --raw-output '.Account')
 JSONCALLERIDENTITYROLEARN=$(aws sts get-caller-identity | jq --raw-output '.Arn')
