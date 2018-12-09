@@ -1,5 +1,10 @@
 # Release notes
 
+## `0.1.3` (20181210)
+
+* Credentials are cached and reloaded upon next invocation
+* Extended `README.md`
+
 ## `0.1.2` (20181209)
 
 * Set custom environment variables from `environment` list for your profiles

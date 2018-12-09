@@ -1,8 +1,13 @@
-# assumerole: A bash script to easily assume AWS roles using Temporary Security Credentials and MFA
+# `assumerole`: A bash script to easily assume AWS roles using Temporary Security Credentials and MFA
 
-The script uses the standard AWS credentials file `~/.aws/credentials` and it's own configuration file
-`~/.assumerole` to assume a role on an account (defined in `~/.assumerole`), using the AWS profile in
-`~/.aws/credentials` by the `aws_profile` property.
+The script uses the standard AWS credentials file `~/.aws/credentials` and it's own configuration file `~/.assumerole` to assume a role on an account (defined in `~/.assumerole`), using the AWS profile in `~/.aws/credentials` referred to by
+the `aws_profile` property in `~/.assumerole`.
+
+Credentials are cached in `~/.assumerole.d/cache`. When assuming a role using `assumerole`,
+and the cache exists, the cache is used and the validity of the cache is checked.
+
+If the cache is valid, it is used. If the cache is not valid, the cache entry is cleared,
+and the user is asked to enter the MFA code.
 
 An example to illustrate this.
 
@@ -67,6 +72,7 @@ Does the following:
 * and also prints the `export` commands to `stdout` for the user to copy/paste
 * sets the environment variables if any are defined in the configuration
   for that profile
+* loads the SSH key, if one is defined for the selected profile
 * start a new shell
 
 In the new shell, the permissions linked to the role that is being assumed is available for
@@ -82,11 +88,11 @@ Exiting the shell will unset the credential environment variables.
 ## Usage
 
 ```
-$ source assumerole profile maftoken
+$ assumerole [profile [mfatoken]]
 ```
 
 ```
-$ . ./assumerole 
+$ assumerole 
 Select from these available accounts:
 cust1-prod-read cust1-staging-power
 Account:   cust1-prod-read
@@ -96,17 +102,20 @@ export AWS_SECRET_ACCESS_KEY=7O801XXXXXXXXXXXXXXXXXahoLwdz8KLtRCc1Bvh
 export AWS_SESSION_TOKEN=FQoDYXdXXXXXX...XXXX//
 ```
 
-When sourcing the scipt using `source` or `. ./assumerole`, the environment variables are set
-by the script, no need to copy/paste the output.
+During its execution, `assumerole` starts a new shell (`${SHELL}`). The environment
+variables that build the credentials are set before starting the shell.
 
-The user has to enter 2 values:
+The user has to enter 2 values (either on the commandline or interactively):
+
 * The account: this is a account string defined in the configuration file `~/.assumerole`
 * MFA token: the current value of the MFA token used as multi factor device
 
-## Bash commandline completion
+## Commandline completion
 
 Bash commandline completion was introduced in version v0.1.1 and can be used to complete
 account names.
+
+### `bash` commandline completion
 
 For command completion to work, add these lines to your `~/.bash_profile` file:
 
@@ -117,6 +126,29 @@ complete -W "${_assumerole_accounts}" 'assumerole'
 ```
 
 You need to star a new shell (or source the `~/.bash_profile` file) before command completion will be avialable.
+
+### `zsh` commandline completion
+
+Create the file `~/.oh-my-zsh/completions/_assumerole` with this content:
+
+```
+#compdef assumerole
+
+function _assumerole {
+  _describe -t 'assumerole' $(/usr/local/bin/assumerole accountlist)
+}
+```
+
+Add these lines to your `~/.zshrc` file:
+
+```
+### Commandline completion
+autoload -U compinit
+compinit
+
+source /usr/local/bin/aws_zsh_completer.sh
+```
+
 ## Environment Variables
 
 ### `AWS_STS_DURATION_SECONDS`
@@ -233,3 +265,23 @@ spawned shell.
 ### `sshkey`
 
 Private key to load when activating the profile.
+
+## Put the active credentials in your shell prompt
+
+### `bash`
+
+```
+### Prompt
+PROMPT_COMMAND="[[ -n \${AWS_ACCOUNT} ]] && export AWS_PROMPT=\" AWS:\${AWS_ACCOUNT}\" || export AWS_PROMPT=''"
+PS1="\s-\v\$AWS_PROMPT $ "
+```
+
+### `zsh`
+
+#### `POWERLEVEL9K`
+
+```
+### POWERLEVEL9K config
+POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=( dir vcs  custom_aws_credentials)
+POWERLEVEL9K_CUSTOM_AWS_CREDENTIALS="[[ -n \${AWS_ACCOUNT} ]] && echo AWS \${AWS_ACCOUNT}"
+```

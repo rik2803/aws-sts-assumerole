@@ -156,8 +156,9 @@ fi
 SetEnvironment
 AddSshKey
 
-JSONCALLERIDENTITYACCOUNT=$(aws sts get-caller-identity | jq --raw-output '.Account')
-JSONCALLERIDENTITYROLEARN=$(aws sts get-caller-identity | jq --raw-output '.Arn')
+AWS_CALLER_IDENTITY=$(aws sts get-caller-identity)
+JSONCALLERIDENTITYACCOUNT=$(echo ${AWS_CALLER_IDENTITY} | jq --raw-output '.Account')
+JSONCALLERIDENTITYROLEARN=$(echo ${AWS_CALLER_IDENTITY} | jq --raw-output '.Arn')
 
 if [[ ${JSONCALLERIDENTITYACCOUNT} == ${ACCOUNT} ]]
 then
