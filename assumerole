@@ -5,6 +5,9 @@ UnsetEnv() {
   unset AWS_ACCESS_KEY_ID
   unset AWS_SECRET_ACCESS_KEY
   unset AWS_SESSION_TOKEN
+  unset AWS_PROFILE
+  unset ENV
+  unset SSHKEY
 }
 
 SelectProfile() {
@@ -15,6 +18,111 @@ SelectProfile() {
 
   printf "\nAccount:   "
   read aws_account
+}
+
+SaveCredentials() {
+  [[ -d ~/.assumerole.d/cache ]] || mkdir -p ~/.assumerole.d/cache
+
+  echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" > ~/.assumerole.d/cache/${aws_account}
+  echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" >> ~/.assumerole.d/cache/${aws_account}
+  echo "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}" >> ~/.assumerole.d/cache/${aws_account}
+  echo "export ROLE=${ROLE}" >> ~/.assumerole.d/cache/${aws_account}
+  echo "export ACCOUNT=${ACCOUNT}" >> ~/.assumerole.d/cache/${aws_account}
+  echo "export aws_account=${aws_account}" >> ~/.assumerole.d/cache/${aws_account}
+  echo "export AWS_ACCOUNT=${aws_account}" >> ~/.assumerole.d/cache/${aws_account}
+  echo "export AWS_EXPIRATION=${AWS_EXPIRATION}" >> ~/.assumerole.d/cache/${aws_account}
+  echo "export SSHKEY=${SSHKEY}" >> ~/.assumerole.d/cache/${aws_account}
+
+  chmod 0600 ~/.assumerole.d/cache/${aws_account}
+}
+
+CheckAndLoadFromCache() {
+  cache_file=~/.assumerole.d/cache/${aws_account}
+  if [[ -e ${cache_file} ]]
+  then
+    ### Cache exists, load it and check if it is still valid
+    . ${cache_file}
+    if aws sts get-caller-identity >/dev/null 2>&1
+    then
+      echo "INFO: Credentials for ${aws_account} loaded from cache."
+      return 0
+    else
+      echo "INFO: Cache found for ${aws_account}, but credentials have expired and will be deleted."
+      rm -f ${cache_file}
+      return 1
+    fi
+  else
+    return 1
+  fi
+}
+
+CreateCredentials() {
+  ### Check config before asking for the MFA token
+  PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
+  ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
+     ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
+  MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
+      ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \"\n\"" ${CONF})
+   SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
+
+  [[ "${PROFILE}" = "null" ]] && { echo "aws_profile missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${ACCOUNT}" = "null" ]] && { echo "aws_account missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${ROLE}" = "null" ]]    && { echo "aws_role missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${MFA_ARN}" = "null" ]] && { echo "aws_mfa_arn missing for account ${aws_account} in ${CONF}"; exit 1; }
+
+  ### Get MFA token from commandline or ask for it
+  if [[ -n ${2} ]]
+  then
+    aws_token=${2}
+  else
+    printf "MFA token: "
+    read aws_token
+  fi
+
+  unset AWS_ACCESS_KEY_ID
+  unset AWS_SECRET_ACCESS_KEY
+  unset AWS_SESSION_TOKEN
+  unset AWS_ACCOUNT
+
+  export AWS_PROFILE=${PROFILE}
+
+  JSON=$(aws sts assume-role \
+           --role-arn arn:aws:iam::${ACCOUNT}:role/${ROLE} \
+           --role-session-name ${ROLE}${$} \
+           --duration-seconds ${AWS_STS_DURATION_SECONDS:-3600} \
+           --serial-number ${MFA_ARN} \
+           --token-code ${aws_token} 2>/dev/null) || { echo "Error assuming role"; exit 1; }
+
+      AWS_ACCESS_KEY_ID=$(echo ${JSON} | jq --raw-output ".Credentials[\"AccessKeyId\"]")
+  AWS_SECRET_ACCESS_KEY=$(echo ${JSON} | jq --raw-output ".Credentials[\"SecretAccessKey\"]")
+      AWS_SESSION_TOKEN=$(echo ${JSON} | jq --raw-output ".Credentials[\"SessionToken\"]")
+         AWS_EXPIRATION=$(echo ${JSON} | jq --raw-output ".Credentials[\"Expiration\"]")
+
+  unset AWS_PROFILE
+
+  export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+  export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+  export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+  export AWS_ACCOUNT=${aws_account}
+
+  SaveCredentials
+}
+
+SetEnvironment() {
+  [[ -n ${ENV} ]] && {
+    echo "INFO: Setting environment for profile ${PROFILE}"
+    eval $(echo ${ENV})
+  }
+}
+
+AddSshKey() {
+  [[ -n ${SSHKEY} ]] && {
+    if ! ssh-add -l | grep -q $(basename ${SSHKEY})
+    then
+      echo "INFO: Adding key ${SSHKEY} for profile ${PROFILE}"
+      ssh-add ${SSHKEY}
+    fi
+  }
 }
 
 # Start with unsetting the current AWS_* envvars to avoid namespace pollution
@@ -40,68 +148,13 @@ else
   SelectProfile
 fi
 
-### Check config before asking for the MFA token
-PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
-ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
-   ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
-MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
-    ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \"\n\"" ${CONF})
- SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
-
-[[ "${PROFILE}" = "null" ]] && { echo "aws_profile missing for account ${aws_account} in ${CONF}"; exit 1; }
-[[ "${ACCOUNT}" = "null" ]] && { echo "aws_account missing for account ${aws_account} in ${CONF}"; exit 1; }
-[[ "${ROLE}" = "null" ]]    && { echo "aws_role missing for account ${aws_account} in ${CONF}"; exit 1; }
-[[ "${MFA_ARN}" = "null" ]] && { echo "aws_mfa_arn missing for account ${aws_account} in ${CONF}"; exit 1; }
-
-### Get MFA token from commandline or ask for it
-if [[ -n ${2} ]]
+if ! CheckAndLoadFromCache
 then
-  aws_token=${2}
-else
-  printf "MFA token: "
-  read aws_token
+  CreateCredentials "$@"
 fi
 
-unset AWS_ACCESS_KEY_ID
-unset AWS_SECRET_ACCESS_KEY
-unset AWS_SESSION_TOKEN
-unset AWS_ACCOUNT
-
-export AWS_PROFILE=${PROFILE}
-
-JSON=$(aws sts assume-role \
-         --role-arn arn:aws:iam::${ACCOUNT}:role/${ROLE} \
-         --role-session-name ${ROLE}${$} \
-         --duration-seconds ${AWS_STS_DURATION_SECONDS:-3600} \
-         --serial-number ${MFA_ARN} \
-         --token-code ${aws_token} 2>/dev/null) || { echo "Error assuming role"; }
-
-    AWS_ACCESS_KEY_ID=$(echo ${JSON} | jq --raw-output ".Credentials[\"AccessKeyId\"]")
-AWS_SECRET_ACCESS_KEY=$(echo ${JSON} | jq --raw-output ".Credentials[\"SecretAccessKey\"]")
-    AWS_SESSION_TOKEN=$(echo ${JSON} | jq --raw-output ".Credentials[\"SessionToken\"]")
-       AWS_EXPIRATION=$(echo ${JSON} | jq --raw-output ".Credentials[\"Expiration\"]")
-
-unset AWS_PROFILE
-
-export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
-export AWS_ACCOUNT=${aws_account}
-
-### Set environment
-[[ -n ${ENV} ]] && {
-  echo "INFO: Setting environment for profile ${PROFILE}"
-  eval $(echo ${ENV})
-}
-
-### Add sshkey
-[[ -n ${SSHKEY} ]] && {
-  if ! ssh-add -l | grep -q $(basename ${SSHKEY})
-  then
-    echo "INFO: Adding key ${SSHKEY} for profile ${PROFILE}"
-    ssh-add ${SSHKEY}
-  fi
-}
+SetEnvironment
+AddSshKey
 
 JSONCALLERIDENTITYACCOUNT=$(aws sts get-caller-identity | jq --raw-output '.Account')
 JSONCALLERIDENTITYROLEARN=$(aws sts get-caller-identity | jq --raw-output '.Arn')
