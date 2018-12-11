@@ -1,6 +1,5 @@
 #! /bin/bash
 
-
 UnsetEnv() {
   unset AWS_ACCESS_KEY_ID
   unset AWS_SECRET_ACCESS_KEY
@@ -56,14 +55,18 @@ CheckAndLoadFromCache() {
   fi
 }
 
+GetAccountInfo() {
+    PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
+    ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
+       ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
+    MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
+        ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \"\n\"" ${CONF})
+     SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
+}
+
 CreateCredentials() {
   ### Check config before asking for the MFA token
-  PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
-  ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
-     ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
-  MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
-      ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \"\n\"" ${CONF})
-   SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
+  GetAccountInfo
 
   [[ "${PROFILE}" = "null" ]] && { echo "aws_profile missing for account ${aws_account} in ${CONF}"; exit 1; }
   [[ "${ACCOUNT}" = "null" ]] && { echo "aws_account missing for account ${aws_account} in ${CONF}"; exit 1; }
@@ -125,6 +128,25 @@ AddSshKey() {
   }
 }
 
+GetAccountName() {
+  if [[ -n ${1} && ${AVAILABLE_PROFILES} == *${1}* ]]
+  then
+    # Argument passed on commandline is a valid profile
+    echo "INFO: The profile ${1} passed on the commandline is a valid profile."
+    aws_account=${1}
+  else
+    SelectProfile
+  fi
+}
+
+PrintAccountInfo() {
+  GetAccountInfo
+  
+  echo "Account Name: ${aws_account}"
+  echo "Account ID: ${ACCOUNT}"
+  echo "Assumed Role: ${ROLE}"
+}
+
 # Start with unsetting the current AWS_* envvars to avoid namespace pollution
 UnsetEnv
 
@@ -134,19 +156,19 @@ AVAILABLE_PROFILES=$(jq --raw-output ".assume_roles | to_entries[] | .key"  ${CO
 
 if [[ -n ${1} && ${1} == accountlist ]]
 then
+  echo "info"
+  echo "accountlist"
   echo ${AVAILABLE_PROFILES}
+  exit 0
+elif [[ -n ${1} && ${1} == info ]]
+then
+  shift 1
+  GetAccountName "$@"
+  PrintAccountInfo
   exit 0
 fi
 
-if [[ -n ${1} && ${AVAILABLE_PROFILES} == *${1}* ]]
-then
-  # Argument passed on commandline is a valid profile
-  echo "INFO: The profile ${1} passed on the commandline is a valid profile."
-  echo "      Continuing to request the temporary credentials."
-  aws_account=${1}
-else
-  SelectProfile
-fi
+GetAccountName "$@"
 
 if ! CheckAndLoadFromCache
 then
