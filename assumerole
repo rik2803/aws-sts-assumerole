@@ -31,6 +31,7 @@ SaveCredentials() {
   echo "export AWS_ACCOUNT=${aws_account}" >> ~/.assumerole.d/cache/${aws_account}
   echo "export AWS_EXPIRATION=${AWS_EXPIRATION}" >> ~/.assumerole.d/cache/${aws_account}
   echo "export SSHKEY=${SSHKEY}" >> ~/.assumerole.d/cache/${aws_account}
+  echo ${ENV} >> ~/.assumerole.d/cache/${aws_account}
 
   chmod 0600 ~/.assumerole.d/cache/${aws_account}
 }
@@ -60,7 +61,7 @@ GetAccountInfo() {
     ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
        ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
     MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
-        ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \"\n\"" ${CONF})
+        ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \";\n\"" ${CONF})
      SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
 }
 
