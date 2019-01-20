@@ -1,5 +1,10 @@
 # Release notes
 
+## `0.1.4` (20181210)
+
+* FIX: Rename ENV variable to ASSUMEROLE_ENV to avoif collision with
+  user defined environment variables in the assumerole config file
+
 ## `0.1.3` (20181210)
 
 * Credentials are cached and reloaded upon next invocation

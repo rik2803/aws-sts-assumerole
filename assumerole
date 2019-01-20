@@ -5,7 +5,7 @@ UnsetEnv() {
   unset AWS_SECRET_ACCESS_KEY
   unset AWS_SESSION_TOKEN
   unset AWS_PROFILE
-  unset ENV
+  unset ASSUMEROLE_ENV
   unset SSHKEY
 }
 
@@ -31,7 +31,7 @@ SaveCredentials() {
   echo "export AWS_ACCOUNT=${aws_account}" >> ~/.assumerole.d/cache/${aws_account}
   echo "export AWS_EXPIRATION=${AWS_EXPIRATION}" >> ~/.assumerole.d/cache/${aws_account}
   echo "export SSHKEY=${SSHKEY}" >> ~/.assumerole.d/cache/${aws_account}
-  echo ${ENV} >> ~/.assumerole.d/cache/${aws_account}
+  echo ${ASSUMEROLE_ENV} >> ~/.assumerole.d/cache/${aws_account}
 
   chmod 0600 ~/.assumerole.d/cache/${aws_account}
 }
@@ -57,12 +57,12 @@ CheckAndLoadFromCache() {
 }
 
 GetAccountInfo() {
-    PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
-    ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
-       ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
-    MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
-        ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \";\n\"" ${CONF})
-     SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
+       PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
+       ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
+          ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
+       MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
+ASSUMEROLE_ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \";\n\"" ${CONF})
+        SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
 }
 
 CreateCredentials() {
@@ -113,9 +113,9 @@ CreateCredentials() {
 }
 
 SetEnvironment() {
-  [[ -n ${ENV} ]] && {
+  [[ -n ${ASSUMEROLE_ENV} ]] && {
     echo "INFO: Setting environment for profile ${PROFILE}"
-    eval $(echo ${ENV})
+    eval $(echo ${ASSUMEROLE_ENV})
   }
 }
 
