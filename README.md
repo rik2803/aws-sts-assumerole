@@ -166,6 +166,15 @@ command:
 aws iam update-role -–role-name name-of-the-role -–max-session-duration 14400
 ```
 
+### `${ASSUMEROLE_COMMAND}`
+
+When this environment variable is set and the `assumerole` command is executed, it will not start
+a new shell, but run the command in the environmnet variable instead, returning to the current
+shell after the command finishes.
+
+This can be used to loop over different accounts and have the same command run against those
+accounts.
+
 ### Custom profile environment variables
 
 When required, custom environment variables can be defined in the configuration
