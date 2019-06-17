@@ -1,5 +1,10 @@
 # Release notes
 
+## `0.1.5` (20190617)
+
+* FEATURE: Set `${ASSUNMEROLE_COMMAND}` to run a command instead of starting
+  a shell
+
 ## `0.1.4` (20181210)
 
 * FIX: Rename ENV variable to ASSUMEROLE_ENV to avoif collision with
@@ -26,6 +31,3 @@
 ## `0.1.0` (First Release)
 
 First version.
-
-
-
