@@ -96,7 +96,12 @@ CreateCredentials() {
            --role-session-name ${ROLE}${$} \
            --duration-seconds ${AWS_STS_DURATION_SECONDS:-3600} \
            --serial-number ${MFA_ARN} \
-           --token-code ${aws_token} 2>/dev/null) || { echo "Error assuming role"; exit 1; }
+           --token-code ${aws_token} 2>&1)
+
+  if [[ $? -ne 0 ]]; then
+    echo "${JSON}"
+    exit 1
+  fi 
 
       AWS_ACCESS_KEY_ID=$(echo ${JSON} | jq --raw-output ".Credentials[\"AccessKeyId\"]")
   AWS_SECRET_ACCESS_KEY=$(echo ${JSON} | jq --raw-output ".Credentials[\"SecretAccessKey\"]")
