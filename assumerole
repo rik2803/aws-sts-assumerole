@@ -91,9 +91,11 @@ CreateCredentials() {
 
   export AWS_PROFILE=${PROFILE}
 
+  role_session_name=$(echo ${ROLE}${$} | tr '/' '_')
+
   JSON=$(aws sts assume-role \
            --role-arn arn:aws:iam::${ACCOUNT}:role/${ROLE} \
-           --role-session-name ${ROLE}${$} \
+           --role-session-name ${role_session_name} \
            --duration-seconds ${AWS_STS_DURATION_SECONDS:-3600} \
            --serial-number ${MFA_ARN} \
            --token-code ${aws_token} 2>&1)
