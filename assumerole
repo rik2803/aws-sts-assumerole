@@ -60,12 +60,13 @@ CheckAndLoadFromCache() {
 }
 
 GetAccountInfo() {
-       PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
-       ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
-          ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
-       MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
-ASSUMEROLE_ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \";\n\"" ${CONF})
-        SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
+               PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
+               ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
+                  ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
+               MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
+  MAX_SESSION_DURATION=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"max_session_duration\"]" ${CONF})
+        ASSUMEROLE_ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \";\n\"" ${CONF})
+                SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
 }
 
 CreateCredentials() {
@@ -76,6 +77,7 @@ CreateCredentials() {
   [[ "${ACCOUNT}" = "null" ]] && { PrintUnlessNotVerbose "aws_account missing for account ${aws_account} in ${CONF}"; exit 1; }
   [[ "${ROLE}" = "null" ]]    && { PrintUnlessNotVerbose "aws_role missing for account ${aws_account} in ${CONF}"; exit 1; }
   [[ "${MFA_ARN}" = "null" ]] && { PrintUnlessNotVerbose "aws_mfa_arn missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${MAX_SESSION_DURATION}" = "null" ]] && MAX_SESSION_DURATION=${AWS_STS_DURATION_SECONDS:-3600}
 
   ### Get MFA token from commandline or ask for it
   if [[ -n ${2} ]]
@@ -98,7 +100,7 @@ CreateCredentials() {
   JSON=$(aws sts assume-role \
            --role-arn arn:aws:iam::${ACCOUNT}:role/${ROLE} \
            --role-session-name ${role_session_name} \
-           --duration-seconds ${AWS_STS_DURATION_SECONDS:-3600} \
+           --duration-seconds ${MAX_SESSION_DURATION} \
            --serial-number ${MFA_ARN} \
            --token-code ${aws_token} 2>&1)
 
