@@ -22,17 +22,19 @@ SelectProfile() {
 SaveCredentials() {
   [[ -d ~/.assumerole.d/cache ]] || mkdir -p ~/.assumerole.d/cache
 
-  echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" > ~/.assumerole.d/cache/${aws_account}
-  echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" >> ~/.assumerole.d/cache/${aws_account}
-  echo "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}" >> ~/.assumerole.d/cache/${aws_account}
-  echo "export ROLE=${ROLE}" >> ~/.assumerole.d/cache/${aws_account}
-  echo "export ACCOUNT=${ACCOUNT}" >> ~/.assumerole.d/cache/${aws_account}
-  echo "export AWS_ACCOUNT_ID=${ACCOUNT}" >> ~/.assumerole.d/cache/${aws_account}
-  echo "export aws_account=${aws_account}" >> ~/.assumerole.d/cache/${aws_account}
-  echo "export AWS_ACCOUNT=${aws_account}" >> ~/.assumerole.d/cache/${aws_account}
-  echo "export AWS_EXPIRATION=${AWS_EXPIRATION}" >> ~/.assumerole.d/cache/${aws_account}
-  echo "export SSHKEY=${SSHKEY}" >> ~/.assumerole.d/cache/${aws_account}
-  echo ${ASSUMEROLE_ENV} >> ~/.assumerole.d/cache/${aws_account}
+  {
+    echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
+    echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+    echo "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
+    echo "export ROLE=${ROLE}"
+    echo "export ACCOUNT=${ACCOUNT}"
+    echo "export AWS_ACCOUNT_ID=${ACCOUNT}"
+    echo "export aws_account=${aws_account}"
+    echo "export AWS_ACCOUNT=${aws_account}"
+    echo "export AWS_EXPIRATION=${AWS_EXPIRATION}"
+    echo "export SSHKEY=${SSHKEY}"
+    echo ${ASSUMEROLE_ENV}
+  } > ~/.assumerole.d/cache/${aws_account}
 
   chmod 0600 ~/.assumerole.d/cache/${aws_account}
 }
@@ -45,10 +47,10 @@ CheckAndLoadFromCache() {
     . ${cache_file}
     if aws sts get-caller-identity >/dev/null 2>&1
     then
-      echo "INFO: Credentials for ${aws_account} loaded from cache."
+      PrintUnlessNotVerbose "INFO: Credentials for ${aws_account} loaded from cache."
       return 0
     else
-      echo "INFO: Cache found for ${aws_account}, but credentials have expired and will be deleted."
+      PrintUnlessNotVerbose "INFO: Cache found for ${aws_account}, but credentials have expired and will be deleted."
       rm -f ${cache_file}
       return 1
     fi
@@ -58,22 +60,24 @@ CheckAndLoadFromCache() {
 }
 
 GetAccountInfo() {
-       PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
-       ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
-          ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
-       MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
-ASSUMEROLE_ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \";\n\"" ${CONF})
-        SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
+               PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" ${CONF})
+               ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" ${CONF})
+                  ROLE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_role\"]"    ${CONF})
+               MFA_ARN=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_mfa_arn\"]" ${CONF})
+  MAX_SESSION_DURATION=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"max_session_duration\"]" ${CONF})
+        ASSUMEROLE_ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \";\n\"" ${CONF})
+                SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
 }
 
 CreateCredentials() {
   ### Check config before asking for the MFA token
   GetAccountInfo
 
-  [[ "${PROFILE}" = "null" ]] && { echo "aws_profile missing for account ${aws_account} in ${CONF}"; exit 1; }
-  [[ "${ACCOUNT}" = "null" ]] && { echo "aws_account missing for account ${aws_account} in ${CONF}"; exit 1; }
-  [[ "${ROLE}" = "null" ]]    && { echo "aws_role missing for account ${aws_account} in ${CONF}"; exit 1; }
-  [[ "${MFA_ARN}" = "null" ]] && { echo "aws_mfa_arn missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${PROFILE}" = "null" ]] && { PrintUnlessNotVerbose "aws_profile missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${ACCOUNT}" = "null" ]] && { PrintUnlessNotVerbose "aws_account missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${ROLE}" = "null" ]]    && { PrintUnlessNotVerbose "aws_role missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${MFA_ARN}" = "null" ]] && { PrintUnlessNotVerbose "aws_mfa_arn missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${MAX_SESSION_DURATION}" = "null" ]] && MAX_SESSION_DURATION=${AWS_STS_DURATION_SECONDS:-3600}
 
   ### Get MFA token from commandline or ask for it
   if [[ -n ${2} ]]
@@ -91,12 +95,19 @@ CreateCredentials() {
 
   export AWS_PROFILE=${PROFILE}
 
+  role_session_name=$(echo ${ROLE}${$} | tr '/' '_')
+
   JSON=$(aws sts assume-role \
            --role-arn arn:aws:iam::${ACCOUNT}:role/${ROLE} \
-           --role-session-name ${ROLE}${$} \
-           --duration-seconds ${AWS_STS_DURATION_SECONDS:-3600} \
+           --role-session-name ${role_session_name} \
+           --duration-seconds ${MAX_SESSION_DURATION} \
            --serial-number ${MFA_ARN} \
-           --token-code ${aws_token} 2>/dev/null) || { echo "Error assuming role"; exit 1; }
+           --token-code ${aws_token} 2>&1)
+
+  if [[ $? -ne 0 ]]; then
+    PrintUnlessNotVerbose "${JSON}"
+    exit 1
+  fi 
 
       AWS_ACCESS_KEY_ID=$(echo ${JSON} | jq --raw-output ".Credentials[\"AccessKeyId\"]")
   AWS_SECRET_ACCESS_KEY=$(echo ${JSON} | jq --raw-output ".Credentials[\"SecretAccessKey\"]")
@@ -116,7 +127,7 @@ CreateCredentials() {
 
 SetEnvironment() {
   [[ -n ${ASSUMEROLE_ENV} ]] && {
-    echo "INFO: Setting environment for profile ${PROFILE}"
+    PrintUnlessNotVerbose "INFO: Setting environment for profile ${PROFILE}"
     eval $(echo ${ASSUMEROLE_ENV})
   }
 }
@@ -125,7 +136,7 @@ AddSshKey() {
   [[ -n ${SSHKEY} ]] && {
     if ! ssh-add -l | grep -q $(basename ${SSHKEY})
     then
-      echo "INFO: Adding key ${SSHKEY} for profile ${PROFILE}"
+      PrintUnlessNotVerbose "INFO: Adding key ${SSHKEY} for profile ${PROFILE}"
       ssh-add ${SSHKEY}
     fi
   }
@@ -135,19 +146,27 @@ GetAccountName() {
   if [[ -n ${1} && ${AVAILABLE_PROFILES} == *${1}* ]]
   then
     # Argument passed on commandline is a valid profile
-    echo "INFO: The profile ${1} passed on the commandline is a valid profile."
+    PrintUnlessNotVerbose "INFO: The profile ${1} passed on the commandline is a valid profile."
     aws_account=${1}
   else
     SelectProfile
   fi
 }
 
+PrintUnlessNotVerbose() {
+  if [[ -z ${ASSUMEROLE_COMMAND} ]]; then
+    if [[ ${ASSUMEROLE_QUIET:-0} -eq 0 ]]; then
+      echo "${*}"
+    fi
+  fi
+}
+
 PrintAccountInfo() {
   GetAccountInfo
   
-  echo "Account Name: ${aws_account}"
-  echo "Account ID: ${ACCOUNT}"
-  echo "Assumed Role: ${ROLE}"
+  PrintUnlessNotVerbose "Account Name: ${aws_account}"
+  PrintUnlessNotVerbose "Account ID: ${ACCOUNT}"
+  PrintUnlessNotVerbose "Assumed Role: ${ROLE}"
 }
 
 # Start with unsetting the current AWS_* envvars to avoid namespace pollution
@@ -159,9 +178,9 @@ AVAILABLE_PROFILES=$(jq --raw-output ".assume_roles | to_entries[] | .key"  ${CO
 
 if [[ -n ${1} && ${1} == accountlist ]]
 then
-  echo "info"
-  echo "accountlist"
-  echo ${AVAILABLE_PROFILES}
+  PrintUnlessNotVerbose "info"
+  PrintUnlessNotVerbose "accountlist"
+  PrintUnlessNotVerbose ${AVAILABLE_PROFILES}
   exit 0
 elif [[ -n ${1} && ${1} == info ]]
 then
@@ -184,34 +203,35 @@ AddSshKey
 AWS_CALLER_IDENTITY=$(aws sts get-caller-identity)
 JSONCALLERIDENTITYACCOUNT=$(echo ${AWS_CALLER_IDENTITY} | jq --raw-output '.Account')
 JSONCALLERIDENTITYROLEARN=$(echo ${AWS_CALLER_IDENTITY} | jq --raw-output '.Arn')
+ROLEBASENAME="$(basename ${ROLE})"
 
 if [[ ${JSONCALLERIDENTITYACCOUNT} == ${ACCOUNT} ]]
 then
-  echo "INFO: Account of assumed role ${JSONCALLERIDENTITYACCOUNT} matches desired account ${ACCOUNT}"
-  if [[ ${JSONCALLERIDENTITYROLEARN} == */${ROLE}/* ]]
+  PrintUnlessNotVerbose "INFO: Account of assumed role ${JSONCALLERIDENTITYACCOUNT} matches desired account ${ACCOUNT}"
+  if [[ ${JSONCALLERIDENTITYROLEARN} == */${ROLEBASENAME}/* ]]
   then
-    echo "INFO: Assumed role ${JSONCALLERIDENTITYROLEARN} matches desired role ${ROLE}"
-    echo "INFO: The temporary credentials expire on ${AWS_EXPIRATION}"
-    echo "INFO: Copy paste following commands to have the same credentials in"
-    echo "      another shell"
-    echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
-    echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
-    echo "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
+    PrintUnlessNotVerbose "INFO: Assumed role ${JSONCALLERIDENTITYROLEARN} matches desired role ${ROLE}"
+    PrintUnlessNotVerbose "INFO: The temporary credentials expire on ${AWS_EXPIRATION}"
+    PrintUnlessNotVerbose "INFO: Copy paste following commands to have the same credentials in"
+    PrintUnlessNotVerbose "      another shell"
+    PrintUnlessNotVerbose "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
+    PrintUnlessNotVerbose "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+    PrintUnlessNotVerbose "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
     export aws_account
     if [[ -n ${ASSUMEROLE_COMMAND} ]]; then
-      echo "INFO: Running command ${ASSUMEROLE_COMMAND}"
+      PrintUnlessNotVerbose "INFO: Running command ${ASSUMEROLE_COMMAND}"
       ${ASSUMEROLE_COMMAND}
     else
-      echo "INFO: Starting a new shell"
+      PrintUnlessNotVerbose "INFO: Starting a new shell"
       ${SHELL}
     fi
   else
-    echo "ERROR: Assumed role ${JSONCALLERIDENTITYROLEARN} does not match desired role ${ROLE}"
-    echo "ERROR: Unsetting environment"
+    PrintUnlessNotVerbose "ERROR: Assumed role ${JSONCALLERIDENTITYROLEARN} does not match desired role ${ROLE}"
+    PrintUnlessNotVerbose "ERROR: Unsetting environment"
     UnsetEnv
   fi
 else
-  echo "ERROR: Account of assumed role ${JSONCALLERIDENTITYACCOUNT} does not match desired account ${ACCOUNT}"
-  echo "ERROR: Unsetting environment"
+  PrintUnlessNotVerbose "ERROR: Account of assumed role ${JSONCALLERIDENTITYACCOUNT} does not match desired account ${ACCOUNT}"
+  PrintUnlessNotVerbose "ERROR: Unsetting environment"
   UnsetEnv
 fi

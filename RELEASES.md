@@ -1,5 +1,9 @@
 # Release notes
 
+## `0.1.6` (20190729)
+
+* IMPROVEMENT: Show an error message when "aws sts assumerole" fails
+
 ## `0.1.5` (20190617)
 
 * FEATURE: Set `${ASSUNMEROLE_COMMAND}` to run a command instead of starting

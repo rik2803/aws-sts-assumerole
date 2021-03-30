@@ -294,3 +294,68 @@ PS1="\s-\v\$AWS_PROMPT $ "
 POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=( dir vcs  custom_aws_credentials)
 POWERLEVEL9K_CUSTOM_AWS_CREDENTIALS="[[ -n \${AWS_ACCOUNT} ]] && echo AWS \${AWS_ACCOUNT}"
 ```
+
+## Troubleshooting
+
+### Check `aws_profile`
+
+The `aws_profile` property in the `assumerole` configuration file shouls be a valid profile in
+`~/.aws/credentials` with a valid and active access key.
+
+If the value of the `aws_profile` property is, for example, `org-bastion`, the following command should
+work and should not fail:
+
+```bash
+$ AWS_PROFILE=org-bastion aws sts get-caller-identity
+{
+    "UserId": "AIDAXXXXXXXXXXXXXXXXX",
+    "Account": "123456789012",
+    "Arn": "arn:aws:iam::123456789012:user/you"
+}
+```
+
+If the output does not resemble what you here, verify the validity of your access key or contact your
+AWS support team. This message is what you get if your access key is invalid:
+
+```bash
+$ AWS_PROFILE=org-bastion aws sts get-caller-identity
+
+An error occurred (SignatureDoesNotMatch) when calling the GetCallerIdentity operation: The request signature
+we calculated does not match the signature you provided. Check your AWS Secret Access Key and signing method.
+Consult the service documentation for details.
+```
+
+### Check the `assumerole` error
+
+The `assumerole` error message is better thanit used to be in previous versione, and basically gives the same error
+as `aws sts *` commands. For example:
+
+```bash
+$ assumerole ixor.vdl-tst-admin 188739
+INFO: The profile ixor.vdl-tst-admin passed on the commandline is a valid profile.
+INFO: Cache found for ixor.vdl-tst-admin, but credentials have expired and will be deleted.
+
+An error occurred (SignatureDoesNotMatch) when calling the AssumeRole operation: The request signature we
+calculated does not match the signature you provided. Check your AWS Secret Access Key and signing method.
+Consult the service documentation for details.
+```
+
+Another possible error is this one:
+
+```bash
+$ assumerole assumerole_profile 384573
+INFO: The profile assumerole_profile passed on the commandline is a valid profile.
+
+An error occurred (AccessDenied) when calling the AssumeRole operation: User: arn:aws:iam::123456789012:user/you
+is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::210987654321:role/admin
+```
+
+This can be caused by:
+
+* The permission to assume the role has not been assigned to you, maybe you can have that taken care off by bying
+  your AWS admin a _bak Duvel_.
+* The value of `AWS_STS_DURATION_SECONDS` is higher than what is allowed for that role on the target 
+  account. Unset `AWS_STS_DURATION_SECONDS` and try again. If it still does not work, remove the `max_session_duration`
+  property from the profile in `~/.assumerole`. If that does not help either, contact the AWS support team in
+  your organization.
+
