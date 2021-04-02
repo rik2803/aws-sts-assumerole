@@ -1,12 +1,15 @@
 #! /bin/bash
 
-UnsetEnv() {
+SetInitialEnvironment() {
   unset AWS_ACCESS_KEY_ID
   unset AWS_SECRET_ACCESS_KEY
   unset AWS_SESSION_TOKEN
   unset AWS_PROFILE
   unset ASSUMEROLE_ENV
   unset SSHKEY
+
+  ASSUMEROLE_CODEARTIFACT=0
+  [[ -z "${ASSUMEROLE_SKIP_CODEARTIFACT}" && -e ~/.m2/settings.xml ]] && ASSUMEROLE_CODEARTIFACT=1
 }
 
 SelectProfile() {
@@ -16,7 +19,7 @@ SelectProfile() {
   echo "${AVAILABLE_PROFILES}"
 
   printf "\nAccount:   "
-  read aws_account
+  read -r aws_account
 }
 
 SaveCredentials() {
@@ -47,10 +50,10 @@ CheckAndLoadFromCache() {
     . ${cache_file}
     if aws sts get-caller-identity >/dev/null 2>&1
     then
-      PrintUnlessNotVerbose "INFO: Credentials for ${aws_account} loaded from cache."
+      IsVerbose && info "Credentials for ${aws_account} loaded from cache."
       return 0
     else
-      PrintUnlessNotVerbose "INFO: Cache found for ${aws_account}, but credentials have expired and will be deleted."
+      IsVerbose && info "Cache found for ${aws_account}, but credentials have expired and will be deleted."
       rm -f ${cache_file}
       return 1
     fi
@@ -69,14 +72,30 @@ GetAccountInfo() {
                 SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" ${CONF})
 }
 
+GetCodeartifactInfo() {
+  ASSUMEROLE_CODEARTIFACT_ID=$(jq --raw-output '.codeartifact.id // "codeartifact"' ${CONF})
+  ASSUMEROLE_CODEARTIFACT_USER=$(jq --raw-output '.codeartifact.username // "aws"' ${CONF})
+  ASSUMEROLE_CODEARTIFACT_DOMAINOWNER=$(jq --raw-output '.codeartifact.domain_owner // "NOT_FOUND"' ${CONF})
+  ASSUMEROLE_CODEARTIFACT_DOMAIN=$(jq --raw-output '.codeartifact.domain // "NOT_FOUND"' ${CONF})
+
+  if [[ "${ASSUMEROLE_CODEARTIFACT_DOMAIN}" == "NOT_FOUND" ]]; then
+    warning "No codeartifact domain found in ~/.assumerole, settings.xml will not be updated"
+    ASSUMEROLE_CODEARTIFACT=0
+  fi
+  if [[ "${ASSUMEROLE_CODEARTIFACT_DOMAINOWNER}" == "NOT_FOUND" ]]; then
+    warning "No codeartifact domain owner found in ~/.assumerole, settings.xml will not be updated"
+    ASSUMEROLE_CODEARTIFACT=0
+  fi
+}
+
 CreateCredentials() {
   ### Check config before asking for the MFA token
   GetAccountInfo
 
-  [[ "${PROFILE}" = "null" ]] && { PrintUnlessNotVerbose "aws_profile missing for account ${aws_account} in ${CONF}"; exit 1; }
-  [[ "${ACCOUNT}" = "null" ]] && { PrintUnlessNotVerbose "aws_account missing for account ${aws_account} in ${CONF}"; exit 1; }
-  [[ "${ROLE}" = "null" ]]    && { PrintUnlessNotVerbose "aws_role missing for account ${aws_account} in ${CONF}"; exit 1; }
-  [[ "${MFA_ARN}" = "null" ]] && { PrintUnlessNotVerbose "aws_mfa_arn missing for account ${aws_account} in ${CONF}"; exit 1; }
+  [[ "${PROFILE}" = "null" ]] && { IsVerbose && fail "aws_profile missing for account ${aws_account} in ${CONF}"; }
+  [[ "${ACCOUNT}" = "null" ]] && { IsVerbose && fail "aws_account missing for account ${aws_account} in ${CONF}"; }
+  [[ "${ROLE}" = "null" ]]    && { IsVerbose && fail "aws_role missing for account ${aws_account} in ${CONF}"; }
+  [[ "${MFA_ARN}" = "null" ]] && { IsVerbose && fail "aws_mfa_arn missing for account ${aws_account} in ${CONF}"; }
   [[ "${MAX_SESSION_DURATION}" = "null" ]] && MAX_SESSION_DURATION=${AWS_STS_DURATION_SECONDS:-3600}
 
   ### Get MFA token from commandline or ask for it
@@ -105,7 +124,7 @@ CreateCredentials() {
            --token-code ${aws_token} 2>&1)
 
   if [[ $? -ne 0 ]]; then
-    PrintUnlessNotVerbose "${JSON}"
+    IsVerbose && plain "${JSON}"
     exit 1
   fi 
 
@@ -127,7 +146,7 @@ CreateCredentials() {
 
 SetEnvironment() {
   [[ -n ${ASSUMEROLE_ENV} ]] && {
-    PrintUnlessNotVerbose "INFO: Setting environment for profile ${PROFILE}"
+    IsVerbose && info "Setting environment for profile ${PROFILE}"
     eval $(echo ${ASSUMEROLE_ENV})
   }
 }
@@ -136,7 +155,7 @@ AddSshKey() {
   [[ -n ${SSHKEY} ]] && {
     if ! ssh-add -l | grep -q $(basename ${SSHKEY})
     then
-      PrintUnlessNotVerbose "INFO: Adding key ${SSHKEY} for profile ${PROFILE}"
+      IsVerbose && info "Adding key ${SSHKEY} for profile ${PROFILE}"
       ssh-add ${SSHKEY}
     fi
   }
@@ -146,31 +165,92 @@ GetAccountName() {
   if [[ -n ${1} && ${AVAILABLE_PROFILES} == *${1}* ]]
   then
     # Argument passed on commandline is a valid profile
-    PrintUnlessNotVerbose "INFO: The profile ${1} passed on the commandline is a valid profile."
+    IsVerbose && info "The profile ${1} passed on the commandline is a valid profile."
     aws_account=${1}
   else
     SelectProfile
   fi
 }
 
-PrintUnlessNotVerbose() {
-  if [[ -z ${ASSUMEROLE_COMMAND} ]]; then
-    if [[ ${ASSUMEROLE_QUIET:-0} -eq 0 ]]; then
-      echo "${*}"
-    fi
+IsVerbose() {
+  if [[ -z ${ASSUMEROLE_COMMAND} && ${ASSUMEROLE_QUIET:-0} -eq 0 ]]; then
+    return 0
+  else
+    return 1
   fi
 }
 
 PrintAccountInfo() {
   GetAccountInfo
   
-  PrintUnlessNotVerbose "Account Name: ${aws_account}"
-  PrintUnlessNotVerbose "Account ID: ${ACCOUNT}"
-  PrintUnlessNotVerbose "Assumed Role: ${ROLE}"
+  IsVerbose && plain "Account Name: ${aws_account}"
+  IsVerbose && plain "Account ID: ${ACCOUNT}"
+  IsVerbose && plain "Assumed Role: ${ROLE}"
 }
 
+CheckCommand() {
+  command -v "${1:-not_present}" >/dev/null 2>&1
+  return ${?}
+}
+
+DoCodeArtifactStuff() {
+  GetCodeartifactInfo
+  if [[ "${ASSUMEROLE_CODEARTIFACT}" -eq "1" ]]; then
+    ### Try to get a authentication token
+    if ASSUMEROLE_CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+       --domain "${ASSUMEROLE_CODEARTIFACT_DOMAIN}" \
+       --domain-owner "${ASSUMEROLE_CODEARTIFACT_DOMAINOWNER}" \
+       --query authorizationToken \
+       --output text); then
+      info "Successfully retrieved a AWS CodeArtifact authentication token"
+      ### Add to settings.xml
+      if xml sel -t -v "/settings/servers/server[id='${ASSUMEROLE_CODEARTIFACT_ID}']/id" ~/.m2/settings.xml >/dev/null 2>&1; then
+        info "settings.xml already contains entry for ID ${ASSUMEROLE_CODEARTIFACT_ID}, updating the password"
+        ### Entry exists, replace the password
+        xml ed --inplace --update "/settings/servers/server[id='codeartifact']/password" \
+                         --value "${ASSUMEROLE_CODEARTIFACT_AUTH_TOKEN}" \
+            ~/.m2/settings.xml
+      else
+        ### Add server entry for codeartifact
+        info "settings.xml does not contain entry for ID ${ASSUMEROLE_CODEARTIFACT_ID}, adding it ..."
+        xml ed --inplace --subnode "/settings/servers" --type elem -n "server" --value "" \
+                         --subnode "//server[last()]" --type elem -n "id" --value "${ASSUMEROLE_CODEARTIFACT_ID}" \
+                         --subnode "//server[last()]" --type elem -n "username" --value "${ASSUMEROLE_CODEARTIFACT_USER}" \
+                         --subnode "//server[last()]" --type elem -n "password" --value "${ASSUMEROLE_CODEARTIFACT_AUTH_TOKEN}" \
+            ~/.m2/settings.xml
+      fi
+    else
+      fail "Unable to obtain a AWS CodeArtifact authentication token"
+    fi
+  else
+    info "Skipping Maven/AWS CodeArtifact setup"
+  fi
+}
+
+gray='\033[37m'
+blue='\033[36m'
+red='\033[31m'
+green='\033[32m'
+orange='\033[33m'
+reset='\033[0m'
+
+info()    { echo -e "${blue}INFO: $*${reset}"; }
+plain()   { echo -e "${green}$*${reset}"; }
+warning() { echo -e "${orange}WARN: $*${reset}"; }
+error()   { echo -e "${red}ERROR: $*${reset}"; }
+success() { echo -e "${green}✔ $*${reset}"; }
+fail()    { echo -e "${red}✖ $*${reset}"; exit 1; }
+debug()   { [[ "${DEBUG}" == "true" ]] && echo -e "${gray}DEBUG: $*${reset}" || true; }
+
+
 # Start with unsetting the current AWS_* envvars to avoid namespace pollution
-UnsetEnv
+SetInitialEnvironment
+
+# Perform some checks
+CheckCommand jq || fail "jq is required by $(basename${0}), please install jq and try again."
+if [[ "${ASSUMEROLE_CODEARTIFACT}" -eq "1" ]]; then
+  CheckCommand xml || fail "xml is required by $(basename ${0}), please install xmlstarlet and try again"
+fi
 
 
 export CONF="${HOME}/.assumerole"
@@ -178,9 +258,9 @@ AVAILABLE_PROFILES=$(jq --raw-output ".assume_roles | to_entries[] | .key"  ${CO
 
 if [[ -n ${1} && ${1} == accountlist ]]
 then
-  PrintUnlessNotVerbose "info"
-  PrintUnlessNotVerbose "accountlist"
-  PrintUnlessNotVerbose ${AVAILABLE_PROFILES}
+  IsVerbose && plain "info"
+  IsVerbose && plain "accountlist"
+  IsVerbose && plain ${AVAILABLE_PROFILES}
   exit 0
 elif [[ -n ${1} && ${1} == info ]]
 then
@@ -199,6 +279,7 @@ fi
 
 SetEnvironment
 AddSshKey
+DoCodeArtifactStuff
 
 AWS_CALLER_IDENTITY=$(aws sts get-caller-identity)
 JSONCALLERIDENTITYACCOUNT=$(echo ${AWS_CALLER_IDENTITY} | jq --raw-output '.Account')
@@ -207,31 +288,31 @@ ROLEBASENAME="$(basename ${ROLE})"
 
 if [[ ${JSONCALLERIDENTITYACCOUNT} == ${ACCOUNT} ]]
 then
-  PrintUnlessNotVerbose "INFO: Account of assumed role ${JSONCALLERIDENTITYACCOUNT} matches desired account ${ACCOUNT}"
+  IsVerbose && info "Account of assumed role ${JSONCALLERIDENTITYACCOUNT} matches desired account ${ACCOUNT}"
   if [[ ${JSONCALLERIDENTITYROLEARN} == */${ROLEBASENAME}/* ]]
   then
-    PrintUnlessNotVerbose "INFO: Assumed role ${JSONCALLERIDENTITYROLEARN} matches desired role ${ROLE}"
-    PrintUnlessNotVerbose "INFO: The temporary credentials expire on ${AWS_EXPIRATION}"
-    PrintUnlessNotVerbose "INFO: Copy paste following commands to have the same credentials in"
-    PrintUnlessNotVerbose "      another shell"
-    PrintUnlessNotVerbose "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
-    PrintUnlessNotVerbose "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
-    PrintUnlessNotVerbose "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
+    IsVerbose && info "Assumed role ${JSONCALLERIDENTITYROLEARN} matches desired role ${ROLE}"
+    IsVerbose && info "The temporary credentials expire on ${AWS_EXPIRATION}"
+    IsVerbose && info "Copy paste following commands to have the same credentials in"
+    IsVerbose && info "  another shell"
+    IsVerbose && plain "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
+    IsVerbose && plain "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+    IsVerbose && plain "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
     export aws_account
     if [[ -n ${ASSUMEROLE_COMMAND} ]]; then
-      PrintUnlessNotVerbose "INFO: Running command ${ASSUMEROLE_COMMAND}"
+      IsVerbose && info "Running command ${ASSUMEROLE_COMMAND}"
       ${ASSUMEROLE_COMMAND}
     else
-      PrintUnlessNotVerbose "INFO: Starting a new shell"
+      IsVerbose && info "Starting a new shell"
       ${SHELL}
     fi
   else
-    PrintUnlessNotVerbose "ERROR: Assumed role ${JSONCALLERIDENTITYROLEARN} does not match desired role ${ROLE}"
-    PrintUnlessNotVerbose "ERROR: Unsetting environment"
-    UnsetEnv
+    IsVerbose && error "Assumed role ${JSONCALLERIDENTITYROLEARN} does not match desired role ${ROLE}"
+    IsVerbose && error "Unsetting environment"
+    SetInitialEnvironment
   fi
 else
-  PrintUnlessNotVerbose "ERROR: Account of assumed role ${JSONCALLERIDENTITYACCOUNT} does not match desired account ${ACCOUNT}"
-  PrintUnlessNotVerbose "ERROR: Unsetting environment"
-  UnsetEnv
+  IsVerbose && error "Account of assumed role ${JSONCALLERIDENTITYACCOUNT} does not match desired account ${ACCOUNT}"
+  IsVerbose && error "Unsetting environment"
+  SetInitialEnvironment
 fi
