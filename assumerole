@@ -220,7 +220,8 @@ DoCodeArtifactStuff() {
             ~/.m2/settings.xml
       fi
     else
-      fail "Unable to obtain a AWS CodeArtifact authentication token"
+      # This should not cause the rest to fail
+      error "Unable to obtain a AWS CodeArtifact authentication token"
     fi
   else
     info "Skipping Maven/AWS CodeArtifact setup"
