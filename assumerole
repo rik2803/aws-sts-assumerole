@@ -221,7 +221,7 @@ DoCodeArtifactStuff() {
       fi
     else
       # This should not cause the rest to fail
-      error "Unable to obtain a AWS CodeArtifact authentication token"
+      warning "Unable to obtain a AWS CodeArtifact authentication token"
     fi
   else
     info "Skipping Maven/AWS CodeArtifact setup"
