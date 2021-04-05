@@ -36,6 +36,7 @@ SaveCredentials() {
     echo "export AWS_ACCOUNT=${aws_account}"
     echo "export AWS_EXPIRATION=${AWS_EXPIRATION}"
     echo "export SSHKEY=${SSHKEY}"
+    echo "export PROFILE=${PROFILE}"
     echo ${ASSUMEROLE_ENV}
   } > ~/.assumerole.d/cache/${aws_account}
 
@@ -73,17 +74,25 @@ GetAccountInfo() {
 }
 
 GetCodeartifactInfo() {
-  ASSUMEROLE_CODEARTIFACT_ID=$(jq --raw-output '.codeartifact.id // "codeartifact"' ${CONF})
-  ASSUMEROLE_CODEARTIFACT_USER=$(jq --raw-output '.codeartifact.username // "aws"' ${CONF})
-  ASSUMEROLE_CODEARTIFACT_DOMAINOWNER=$(jq --raw-output '.codeartifact.domain_owner // "NOT_FOUND"' ${CONF})
-  ASSUMEROLE_CODEARTIFACT_DOMAIN=$(jq --raw-output '.codeartifact.domain // "NOT_FOUND"' ${CONF})
+  local profile="${1:-NA}"
+  JQ_OUTPUT=$(jq ".codeartifact[] | select(.profile==\"${profile}\")" ${CONF})
+  if [[ -n "${JQ_OUTPUT}" ]]; then
+    info "Found CodeArtifact entry for ${profile} in ${CONF}."
+    ASSUMEROLE_CODEARTIFACT_ID=$(jq --raw-output ".codeartifact[] | select(.profile==\"${profile}\") | .id // \"codeartifact\"" ${CONF})
+    ASSUMEROLE_CODEARTIFACT_USER=$(jq --raw-output ".codeartifact[] | select(.profile==\"${profile}\") | .username // \"aws\"" ${CONF})
+    ASSUMEROLE_CODEARTIFACT_DOMAINOWNER=$(jq --raw-output ".codeartifact[] | select(.profile==\"${profile}\") | .domain_owner // \"NOT_FOUND\"" ${CONF})
+    ASSUMEROLE_CODEARTIFACT_DOMAIN=$(jq --raw-output ".codeartifact[] | select(.profile==\"${profile}\") | .domain // \"NOT_FOUND\"" ${CONF})
 
-  if [[ "${ASSUMEROLE_CODEARTIFACT_DOMAIN}" == "NOT_FOUND" ]]; then
-    warning "No codeartifact domain found in ~/.assumerole, settings.xml will not be updated"
-    ASSUMEROLE_CODEARTIFACT=0
-  fi
-  if [[ "${ASSUMEROLE_CODEARTIFACT_DOMAINOWNER}" == "NOT_FOUND" ]]; then
-    warning "No codeartifact domain owner found in ~/.assumerole, settings.xml will not be updated"
+    if [[ "${ASSUMEROLE_CODEARTIFACT_DOMAIN}" == "NOT_FOUND" ]]; then
+      warning "No codeartifact domain found in ~/.assumerole, settings.xml will not be updated"
+      ASSUMEROLE_CODEARTIFACT=0
+    fi
+    if [[ "${ASSUMEROLE_CODEARTIFACT_DOMAINOWNER}" == "NOT_FOUND" ]]; then
+      warning "No codeartifact domain owner found in ~/.assumerole, settings.xml will not be updated"
+      ASSUMEROLE_CODEARTIFACT=0
+    fi
+  else
+    warning "No CodeArtifact entry found for ${profile} in ${CONF}."
     ASSUMEROLE_CODEARTIFACT=0
   fi
 }
@@ -194,7 +203,7 @@ CheckCommand() {
 }
 
 DoCodeArtifactStuff() {
-  GetCodeartifactInfo
+  GetCodeartifactInfo "${PROFILE}"
   if [[ "${ASSUMEROLE_CODEARTIFACT}" -eq "1" ]]; then
     ### Try to get a authentication token
     if ASSUMEROLE_CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
@@ -252,7 +261,6 @@ CheckCommand jq || fail "jq is required by $(basename${0}), please install jq an
 if [[ "${ASSUMEROLE_CODEARTIFACT}" -eq "1" ]]; then
   CheckCommand xml || fail "xml is required by $(basename ${0}), please install xmlstarlet and try again"
 fi
-
 
 export CONF="${HOME}/.assumerole"
 AVAILABLE_PROFILES=$(jq --raw-output ".assume_roles | to_entries[] | .key"  ${CONF})
