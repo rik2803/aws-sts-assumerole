@@ -13,13 +13,19 @@ SetInitialEnvironment() {
 }
 
 SelectProfile() {
-  echo "Select from these available accounts:"
-  echo ""
+  SAVED_PS3="${PS3}"
+  PS3="Enter a number: "
 
-  echo "${AVAILABLE_PROFILES}"
+  plain "Select from these available accounts:"
+  plain ""
 
-  printf "\nAccount:   "
-  read -r aws_account
+  select choice in ${@}; do
+    if [[ ${REPLY} -gt 0 && ${REPLY} -le ${#} ]]; then
+      aws_account=${choice}
+      break
+    fi
+  done
+  PS3="${SAVED_PS3}"
 }
 
 SaveCredentials() {
@@ -177,7 +183,7 @@ GetAccountName() {
     IsVerbose && info "The profile ${1} passed on the commandline is a valid profile."
     aws_account=${1}
   else
-    SelectProfile
+    SelectProfile ${AVAILABLE_PROFILES}
   fi
 }
 
