@@ -1,7 +1,8 @@
 # `assumerole`: A bash script to easily assume AWS roles using Temporary Security Credentials and MFA
 
-The script uses the standard AWS credentials file `~/.aws/credentials` and it's own configuration file `~/.assumerole` to assume a role on an account (defined in `~/.assumerole`), using the AWS profile in `~/.aws/credentials` referred to by
-the `aws_profile` property in `~/.assumerole`.
+The script uses the standard AWS credentials file `~/.aws/credentials` and it's own configuration file `~/.assumerole`
+to assume a role on an account (defined in `~/.assumerole`), using the AWS profile in `~/.aws/credentials` referred
+to by the `aws_profile` property in `~/.assumerole`.
 
 Credentials are cached in `~/.assumerole.d/cache`. When assuming a role using `assumerole`,
 and the cache exists, the cache is used and the validity of the cache is checked.
@@ -24,6 +25,12 @@ The `~/.assumerole` file contains this:
 
 ```$xslt
 {
+  "codeartifact": {
+    "id": "codeartifact",
+    "username": "aws",
+    "domain_owner": "678053966837",
+    "domain": "ixorartifacts"
+  },
   "assume_roles": {
     "acme-sandbox-read": {
       "aws_profile": "acme-bastion",
@@ -73,6 +80,8 @@ Does the following:
 * sets the environment variables if any are defined in the configuration
   for that profile
 * loads the SSH key, if one is defined for the selected profile
+* if the file `~/.m2/settings.xml` exists, `assumerole` will add a `<server>` entry for
+  AWS CodeArtifact
 * start a new shell
 
 In the new shell, the permissions linked to the role that is being assumed is available for
@@ -83,6 +92,7 @@ Exiting the shell will unset the credential environment variables.
 ## Pre-requisites
 
 * The script uses `jq` to parse the JSON configuration file `~/.assumerole`
+* When you want to use the Maven/AWS CodeArtifact integration, the `xml` command from _XMLStarlet_ is required as well
 * The AWS CLI, see [here](https://docs.aws.amazon.com/cli/latest/userguide/installing.html) on how to install this
 
 ## Usage
@@ -109,6 +119,35 @@ The user has to enter 2 values (either on the commandline or interactively):
 
 * The account: this is a account string defined in the configuration file `~/.assumerole`
 * MFA token: the current value of the MFA token used as multi factor device
+
+## _Maven_ and AWS CodeArtifact support
+
+If these conditions are met:
+
+* the file `~/.m2/settings.xml` exists
+* `codeartifact.domain` is in `~/.assumerole`
+* `codeartifact.domain_owner` is in `~/.assumerole`
+* the environment variable `ASSUMEROLE_SKIP_CODEARTIFACT` is not set
+* a CodeArtifact authentication token can be successfully obtained
+
+Then:
+* the `password` property for the _ID_ will be updated if a server entry for that _ID_ already exists
+* a net `<server>` node will be added to `<servers>` in `~/.m2/settings.xml` if that entry did not already exist 
+
+An example AWS CodeArtifact configuration for `~/.assumerole` looks like this:
+
+```json
+{
+  "codeartifact": {
+    "id": "codeartifact",
+    "username": "aws",
+    "domain_owner": "123456789012",
+    "domain": "my_artifacts"
+  },
+  "assume_roles": {
+  }
+}
+```
 
 ## Commandline completion
 
