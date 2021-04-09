@@ -217,7 +217,7 @@ DoCodeArtifactStuff() {
        --domain-owner "${ASSUMEROLE_CODEARTIFACT_DOMAINOWNER}" \
        --query authorizationToken \
        --output text); then
-      info "Successfully retrieved a AWS CodeArtifact authentication token"
+      success "Successfully retrieved a AWS CodeArtifact authentication token"
       ### Add to settings.xml
       if xml sel -t -v "/settings/servers/server[id='${ASSUMEROLE_CODEARTIFACT_ID}']/id" ~/.m2/settings.xml >/dev/null 2>&1; then
         info "settings.xml already contains entry for ID ${ASSUMEROLE_CODEARTIFACT_ID}, updating the password"
