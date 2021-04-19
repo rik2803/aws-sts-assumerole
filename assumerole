@@ -13,7 +13,8 @@ SetInitialEnvironment() {
 }
 
 SelectProfile() {
-  SAVED_PS3="${PS3}"
+  local saved_ps3
+  saved_ps3="${PS3}"
   PS3="Enter a number: "
 
   plain "Select from these available accounts:"
@@ -25,7 +26,7 @@ SelectProfile() {
       break
     fi
   done
-  PS3="${SAVED_PS3}"
+  PS3="${saved_ps3}"
 }
 
 SaveCredentials() {
@@ -50,6 +51,7 @@ SaveCredentials() {
 }
 
 CheckAndLoadFromCache() {
+  local cache_file
   cache_file=~/.assumerole.d/cache/${aws_account}
   if [[ -e ${cache_file} ]]
   then
@@ -276,6 +278,10 @@ then
   IsVerbose && plain "info"
   IsVerbose && plain "accountlist"
   IsVerbose && plain ${AVAILABLE_PROFILES}
+  exit 0
+elif [[ -n ${1} && ${1} == accountlist_text ]]
+then
+  echo ${AVAILABLE_PROFILES}
   exit 0
 elif [[ -n ${1} && ${1} == info ]]
 then
