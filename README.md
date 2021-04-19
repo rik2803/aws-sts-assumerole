@@ -160,7 +160,7 @@ For command completion to work, add these lines to your `~/.bash_profile` file:
 
 ```bash
 # Bash completion for assumerole
-_assumerole_accounts=$(assumerole accountlist)
+_assumerole_accounts=$(assumerole accountlist_text)
 complete -W "${_assumerole_accounts}" 'assumerole'
 ```
 
@@ -168,24 +168,15 @@ You need to star a new shell (or source the `~/.bash_profile` file) before comma
 
 ### `zsh` commandline completion
 
-Create the file `~/.oh-my-zsh/completions/_assumerole` with this content:
+Copy the file `autocompletion/_assumerole.zsh` in this repo to
+`~/.oh-my-zsh/completions/_assumerole`.
 
-```
-#compdef assumerole
-
-function _assumerole {
-  _describe -t 'assumerole' $(/usr/local/bin/assumerole accountlist)
-}
-```
-
-Add these lines to your `~/.zshrc` file:
+And these lines to your `~/.zshrc` file if they are not present:
 
 ```
 ### Commandline completion
 autoload -U compinit
 compinit
-
-source /usr/local/bin/aws_zsh_completer.sh
 ```
 
 ## Environment Variables
