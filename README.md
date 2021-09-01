@@ -357,7 +357,7 @@ Consult the service documentation for details.
 
 ### Check the `assumerole` error
 
-The `assumerole` error message is better thanit used to be in previous versione, and basically gives the same error
+The `assumerole` error message is better than it used to be in previous versions, and basically gives the same error
 as `aws sts *` commands. For example:
 
 ```bash
