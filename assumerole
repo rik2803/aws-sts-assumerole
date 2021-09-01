@@ -85,7 +85,7 @@ GetCodeartifactInfo() {
   local profile="${1:-NA}"
   JQ_OUTPUT=$(jq ".codeartifact[] | select(.profile==\"${profile}\")" ${CONF})
   if [[ -n "${JQ_OUTPUT}" ]]; then
-    info "Found CodeArtifact entry for ${profile} in ${CONF}."
+    IsVerbose && info "Found CodeArtifact entry for ${profile} in ${CONF}."
     ASSUMEROLE_CODEARTIFACT_ID=$(jq --raw-output ".codeartifact[] | select(.profile==\"${profile}\") | .id // \"codeartifact\"" ${CONF})
     ASSUMEROLE_CODEARTIFACT_USER=$(jq --raw-output ".codeartifact[] | select(.profile==\"${profile}\") | .username // \"aws\"" ${CONF})
     ASSUMEROLE_CODEARTIFACT_DOMAINOWNER=$(jq --raw-output ".codeartifact[] | select(.profile==\"${profile}\") | .domain_owner // \"NOT_FOUND\"" ${CONF})
@@ -212,6 +212,7 @@ CheckCommand() {
 
 DoCodeArtifactStuff() {
   GetCodeartifactInfo "${PROFILE}"
+  export CODEARTIFACT_AUTH_TOKEN=""
   if [[ "${ASSUMEROLE_CODEARTIFACT}" -eq "1" ]]; then
     ### Try to get a authentication token
     if ASSUMEROLE_CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
@@ -219,17 +220,19 @@ DoCodeArtifactStuff() {
        --domain-owner "${ASSUMEROLE_CODEARTIFACT_DOMAINOWNER}" \
        --query authorizationToken \
        --output text); then
-      success "Successfully retrieved a AWS CodeArtifact authentication token"
+      IsVerbose && success "Successfully retrieved a AWS CodeArtifact authentication token"
+      ### Set the auth token as envvar
+      export CODEARTIFACT_AUTH_TOKEN="${ASSUMEROLE_CODEARTIFACT_AUTH_TOKEN}"
       ### Add to settings.xml
       if xml sel -t -v "/settings/servers/server[id='${ASSUMEROLE_CODEARTIFACT_ID}']/id" ~/.m2/settings.xml >/dev/null 2>&1; then
-        info "settings.xml already contains entry for ID ${ASSUMEROLE_CODEARTIFACT_ID}, updating the password"
+        IsVerbose && info "settings.xml already contains entry for ID ${ASSUMEROLE_CODEARTIFACT_ID}, updating the password"
         ### Entry exists, replace the password
         xml ed --inplace --update "/settings/servers/server[id='codeartifact']/password" \
                          --value "${ASSUMEROLE_CODEARTIFACT_AUTH_TOKEN}" \
             ~/.m2/settings.xml
       else
         ### Add server entry for codeartifact
-        info "settings.xml does not contain entry for ID ${ASSUMEROLE_CODEARTIFACT_ID}, adding it ..."
+        IsVerbose && info "settings.xml does not contain entry for ID ${ASSUMEROLE_CODEARTIFACT_ID}, adding it ..."
         xml ed --inplace --subnode "/settings/servers" --type elem -n "server" --value "" \
                          --subnode "//server[last()]" --type elem -n "id" --value "${ASSUMEROLE_CODEARTIFACT_ID}" \
                          --subnode "//server[last()]" --type elem -n "username" --value "${ASSUMEROLE_CODEARTIFACT_USER}" \
@@ -319,6 +322,7 @@ then
     IsVerbose && plain "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
     IsVerbose && plain "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
     IsVerbose && plain "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
+    IsVerbose && plain "export CODEARTIFACT_AUTH_TOKEN=\"${CODEARTIFACT_AUTH_TOKEN}\""
     export aws_account
     if [[ -n ${ASSUMEROLE_COMMAND} ]]; then
       IsVerbose && info "Running command ${ASSUMEROLE_COMMAND}"
