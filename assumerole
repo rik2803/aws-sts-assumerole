@@ -131,7 +131,7 @@ CreateCredentials() {
 
   export AWS_PROFILE=${PROFILE}
 
-  role_session_name=$(echo ${ROLE:0:20}${$} | tr '/' '-' | tr ':' '-')
+  role_session_name=$(echo ${ROLE:0:40}${$} | tr '/' '-' | tr ':' '-')
 
   JSON=$(aws sts assume-role \
            --role-arn arn:aws:iam::${ACCOUNT}:role/${ROLE} \
