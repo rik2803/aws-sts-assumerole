@@ -228,7 +228,7 @@ DoCodeArtifactStuff() {
        --domain "${ASSUMEROLE_CODEARTIFACT_DOMAIN}" \
        --domain-owner "${ASSUMEROLE_CODEARTIFACT_DOMAINOWNER}" \
        --query authorizationToken \
-       --output text); then
+       --output text 2>/dev/null); then
       IsVerbose && success "Successfully retrieved a AWS CodeArtifact authentication token"
       ### Set the auth token as envvar
       export CODEARTIFACT_AUTH_TOKEN="${assumerole_codeartifact_auth_token}"
@@ -250,7 +250,9 @@ DoCodeArtifactStuff() {
       fi
     else
       # This should not cause the rest to fail
-      warning "Unable to obtain a AWS CodeArtifact authentication token"
+      warning "Unable to obtain a AWS CodeArtifact authentication token."
+      warning "The role you are assuming does not have the permissions for the CodeArtifact"
+      warning "GetAuthorizationToken operation."
     fi
   else
     info "Skipping Maven/AWS CodeArtifact setup"
