@@ -84,10 +84,10 @@ GetAccountInfo() {
 
 GetCodeartifactInfo() {
   local profile="${1:-NA}"
-  local JQ_OUTPUT
+  local jq_output
 
-  JQ_OUTPUT=$(jq ".codeartifact[] | select(.profile==\"${profile}\")" "${CONF}")
-  if [[ -n "${JQ_OUTPUT}" ]]; then
+  jq_output=$(jq ".codeartifact[] | select(.profile==\"${profile}\")" "${CONF}")
+  if [[ -n "${jq_output}" ]]; then
     IsVerbose && info "Found CodeArtifact entry for ${profile} in ${CONF}."
     ASSUMEROLE_CODEARTIFACT_ID=$(jq --raw-output ".codeartifact[] | select(.profile==\"${profile}\") | .id // \"codeartifact\"" "${CONF}")
     ASSUMEROLE_CODEARTIFACT_USER=$(jq --raw-output ".codeartifact[] | select(.profile==\"${profile}\") | .username // \"aws\"" "${CONF}")
