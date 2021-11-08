@@ -20,7 +20,7 @@ SelectProfile() {
   plain "Select from these available accounts:"
   plain ""
 
-  select choice in "${@}"; do
+  select choice in ${@}; do
     if [[ ${REPLY} -gt 0 && ${REPLY} -le ${#} ]]; then
       aws_account=${choice}
       break
@@ -192,7 +192,7 @@ GetAccountName() {
     IsVerbose && info "The profile ${1} passed on the commandline is a valid profile."
     aws_account=${1}
   else
-    SelectProfile "${AVAILABLE_PROFILES}"
+    SelectProfile ${AVAILABLE_PROFILES}
   fi
 }
 
