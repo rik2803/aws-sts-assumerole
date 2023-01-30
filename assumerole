@@ -81,6 +81,7 @@ GetAccountInfo() {
   MAX_SESSION_DURATION=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"max_session_duration\"]" "${CONF}")
         ASSUMEROLE_ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \";\n\"" "${CONF}")
                 SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" "${CONF}")
+                jq    --raw-output ".assume_roles[\"${aws_account}\"]" "${CONF}" | grep "aws_region" && AWS_DEFAULT_REGION=$(jq --raw-output ".assume_roles[\"${aws_account}\"][\"aws_region\"]" "${CONF}") || AWS_DEFAULT_REGION="eu-central-1"
 }
 
 GetCodeartifactInfo() {
@@ -165,7 +166,7 @@ CreateCredentials() {
   export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
   export AWS_ACCOUNT
   export AWS_ACCOUNT_ID
-  export AWS_DEFAULT_REGION="eu-central-1"
+  export AWS_DEFAULT_REGION
 
   SaveCredentials
 }
