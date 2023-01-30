@@ -44,6 +44,7 @@ SaveCredentials() {
     echo "export AWS_EXPIRATION=${AWS_EXPIRATION}"
     echo "export SSHKEY=${SSHKEY}"
     echo "export PROFILE=${PROFILE}"
+    echo "export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
     echo "${ASSUMEROLE_ENV}"
   } > "${HOME}/.assumerole.d/cache/${aws_account}"
 
@@ -80,6 +81,8 @@ GetAccountInfo() {
   MAX_SESSION_DURATION=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"max_session_duration\"]" "${CONF}")
         ASSUMEROLE_ENV=$(jq -j --raw-output ".assume_roles[\"${aws_account}\"] | select(.environment != null) | .environment[] | \"export \", .name, \"=\", .value, \";\n\"" "${CONF}")
                 SSHKEY=$(jq    --raw-output ".assume_roles[\"${aws_account}\"] | select(.sshkey != null) | .sshkey" "${CONF}")
+                AWS_DEFAULT_REGION=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_region\"]" "${CONF}")
+                [[ -z "${AWS_DEFAULT_REGION}" ]] && AWS_DEFAULT_REGION="eu-central-1"
 }
 
 GetCodeartifactInfo() {
@@ -164,6 +167,7 @@ CreateCredentials() {
   export AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN}"
   export AWS_ACCOUNT
   export AWS_ACCOUNT_ID
+  export AWS_DEFAULT_REGION
 
   SaveCredentials
 }
@@ -333,6 +337,7 @@ then
     IsVerbose && plain "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
     IsVerbose && plain "export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
     IsVerbose && plain "export CODEARTIFACT_AUTH_TOKEN=\"${CODEARTIFACT_AUTH_TOKEN}\""
+    IsVerbose && plain "export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
     export aws_account
     if [[ -n ${ASSUMEROLE_COMMAND} ]]; then
       IsVerbose && info "Running command ${ASSUMEROLE_COMMAND}"
