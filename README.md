@@ -149,6 +149,25 @@ An example AWS CodeArtifact configuration for `~/.assumerole` looks like this:
 }
 ```
 
+## 1Password CLI v2 support
+
+In order to assume a role, it is required to fill in an `MFA token`, this token can be given in the command itself or entered when prompted.
+
+If you have the 1Password CLI installed, it is possible to get the `OTP` from the entry (env var placed in `~/.zshrc`)
+
+### Requirements
+
+* 1Password account set as `ONEPASS_ACCOUNT` in `~/.zshrc` (looks like `[account].1password.eu`)
+* 1Password entry set as `ONEPASS_ENTRY` in `~/.zshrc` (Entry in 1Password that contains the `Bastion OTP`)
+* 1Password CLI v2 installed ([install here](https://app-updates.agilebits.com/product_history/CLI2))
+
+### Usage
+```
+$ assumerole [profile]
+```
+
+1Password CLI will prompt it's authentication in order to fetch the OTP token.
+
 ## Commandline completion
 
 Bash commandline completion was introduced in version v0.1.1 and can be used to complete

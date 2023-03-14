@@ -7,6 +7,7 @@ SetInitialEnvironment() {
   unset AWS_PROFILE
   unset ASSUMEROLE_ENV
   unset SSHKEY
+  unset OTP
 
   ASSUMEROLE_CODEARTIFACT=0
   [[ -z "${ASSUMEROLE_SKIP_CODEARTIFACT}" && -e ~/.m2/settings.xml ]] && ASSUMEROLE_CODEARTIFACT=1
@@ -73,6 +74,17 @@ CheckAndLoadFromCache() {
   fi
 }
 
+GetOtpInfo() {
+  # Check Env Vars
+  [[ -z ${ONEPASS_ACCOUNT} ]] && fail "Var ONEPASS_ACCOUNT is not set"
+  [[ -z ${ONEPASS_ENTRY} ]] && echo "Var ONEPASS_BASTION is not set"
+
+  # Get OTP Info
+  eval $(op signin --account ${ONEPASS_ACCOUNT})
+  OTP=$(op item get "${ONEPASS_ENTRY}" --otp)
+  op signout
+}
+
 GetAccountInfo() {
                PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" "${CONF}")
                ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" "${CONF}")
@@ -129,6 +141,10 @@ CreateCredentials() {
   if [[ -n ${2} ]]
   then
     aws_token=${2}
+  elif [[ ${OP_INSTALLED} ]]
+  then
+    GetOtpInfo
+    aws_token=${OTP}
   else
     printf "MFA token: "
     read -r aws_token
@@ -285,6 +301,16 @@ SetInitialEnvironment
 CheckCommand jq || fail "jq is required by $(basename "${0}"), please install jq and try again."
 if [[ "${ASSUMEROLE_CODEARTIFACT}" -eq "1" ]]; then
   CheckCommand xml || fail "xml is required by $(basename "${0}"), please install xmlstarlet and try again"
+fi
+
+# Check if op is installed
+if [[ $(type op) ]] &>/dev/null
+ then
+   success "1Password CLI is installed"
+   OP_INSTALLED=true
+ else
+   error "1Password CLI is not installed, install 1Password CLI to enable this feature"
+   OP_INSTALLED=false
 fi
 
 export CONF="${HOME}/.assumerole"
