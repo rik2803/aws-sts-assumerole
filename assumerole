@@ -76,13 +76,24 @@ CheckAndLoadFromCache() {
 
 GetOtpInfo() {
   # Check Env Vars
-  [[ -z ${ONEPASS_ACCOUNT} ]] && fail "Var ONEPASS_ACCOUNT is not set"
-  [[ -z ${ONEPASS_ENTRY} ]] && echo "Var ONEPASS_BASTION is not set"
+  unset IS_SET
+  if [[ -z ${ONEPASS_ACCOUNT} ]] 
+  then
+    info "Var ONEPASS_ACCOUNT is not set, reverting to manual MFA token prompt"
+    IS_SET=false
+  fi
+  if [[ -z ${ONEPASS_ENTRY} ]]
+    then info "Var ONEPASS_BASTION is not set, reverting to manual MFA token prompt"
+    IS_SET=false
+  fi
 
   # Get OTP Info
-  eval $(op signin --account ${ONEPASS_ACCOUNT})
-  OTP=$(op item get "${ONEPASS_ENTRY}" --otp)
-  op signout
+  if [[ -z ${IS_SET} ]]
+  then
+    eval $(op signin --account ${ONEPASS_ACCOUNT})
+    OTP=$(op item get "${ONEPASS_ENTRY}" --otp)
+    op signout
+  fi
 }
 
 GetAccountInfo() {
@@ -138,12 +149,13 @@ CreateCredentials() {
   [[ "${MAX_SESSION_DURATION}" = "null" ]] && MAX_SESSION_DURATION=${AWS_STS_DURATION_SECONDS:-3600}
 
   ### Get MFA token from commandline or ask for it
+  [[ ${OP_INSTALLED} ]] && GetOtpInfo
+
   if [[ -n ${2} ]]
   then
     aws_token=${2}
-  elif [[ ${OP_INSTALLED} ]]
+  elif [[ ${OTP} ]]
   then
-    GetOtpInfo
     aws_token=${OTP}
   else
     printf "MFA token: "
