@@ -159,7 +159,7 @@ If you have the 1Password CLI installed, it is possible to get the `OTP` from th
 
 * 1Password account set as `ONEPASS_ACCOUNT` in `~/.zshrc` (looks like `[account].1password.eu`)
 * 1Password entry set as `ONEPASS_ENTRY` in `~/.zshrc` (Entry in 1Password that contains the `Bastion OTP`)
-* 1Password CLI v2 installed ([install here](https://app-updates.agilebits.com/product_history/CLI2))
+* 1Password CLI v2 installed and configured ([install here](https://developer.1password.com/docs/cli/get-started/#install))
 
 ### Usage
 ```
