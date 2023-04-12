@@ -83,7 +83,7 @@ GetOtpInfo() {
     IS_SET=false
   fi
   if [[ -z ${ONEPASS_ENTRY} ]]
-    then info "Var ONEPASS_BASTION is not set, reverting to manual MFA token prompt"
+    then info "Var ONEPASS_ENTRY is not set, reverting to manual MFA token prompt"
     IS_SET=false
   fi
 
