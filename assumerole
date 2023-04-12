@@ -7,6 +7,7 @@ SetInitialEnvironment() {
   unset AWS_PROFILE
   unset ASSUMEROLE_ENV
   unset SSHKEY
+  unset OTP
 
   ASSUMEROLE_CODEARTIFACT=0
   [[ -z "${ASSUMEROLE_SKIP_CODEARTIFACT}" && -e ~/.m2/settings.xml ]] && ASSUMEROLE_CODEARTIFACT=1
@@ -73,6 +74,28 @@ CheckAndLoadFromCache() {
   fi
 }
 
+GetOtpInfo() {
+  # Check Env Vars
+  unset IS_SET
+  if [[ -z ${ONEPASS_ACCOUNT} ]] 
+  then
+    info "Var ONEPASS_ACCOUNT is not set, reverting to manual MFA token prompt"
+    IS_SET=false
+  fi
+  if [[ -z ${ONEPASS_ENTRY} ]]
+    then info "Var ONEPASS_BASTION is not set, reverting to manual MFA token prompt"
+    IS_SET=false
+  fi
+
+  # Get OTP Info
+  if [[ -z ${IS_SET} ]]
+  then
+    eval $(op signin --account ${ONEPASS_ACCOUNT})
+    OTP=$(op item get "${ONEPASS_ENTRY}" --otp)
+    op signout
+  fi
+}
+
 GetAccountInfo() {
                PROFILE=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_profile\"]" "${CONF}")
                ACCOUNT=$(jq    --raw-output ".assume_roles[\"${aws_account}\"][\"aws_account\"]" "${CONF}")
@@ -126,9 +149,14 @@ CreateCredentials() {
   [[ "${MAX_SESSION_DURATION}" = "null" ]] && MAX_SESSION_DURATION=${AWS_STS_DURATION_SECONDS:-3600}
 
   ### Get MFA token from commandline or ask for it
+  [[ "${OP_INSTALLED}" == "true" ]] && GetOtpInfo
+
   if [[ -n ${2} ]]
   then
     aws_token=${2}
+  elif [[ ${OTP} ]]
+  then
+    aws_token=${OTP}
   else
     printf "MFA token: "
     read -r aws_token
@@ -285,6 +313,16 @@ SetInitialEnvironment
 CheckCommand jq || fail "jq is required by $(basename "${0}"), please install jq and try again."
 if [[ "${ASSUMEROLE_CODEARTIFACT}" -eq "1" ]]; then
   CheckCommand xml || fail "xml is required by $(basename "${0}"), please install xmlstarlet and try again"
+fi
+
+# Check if op is installed
+if [[ $(type op) ]] &>/dev/null
+ then
+   success "1Password CLI is installed"
+   OP_INSTALLED=true
+ else
+   info "1Password CLI is not installed, install 1Password CLI to enable this feature"
+   OP_INSTALLED=false
 fi
 
 export CONF="${HOME}/.assumerole"
