@@ -315,16 +315,6 @@ if [[ "${ASSUMEROLE_CODEARTIFACT}" -eq "1" ]]; then
   CheckCommand xml || fail "xml is required by $(basename "${0}"), please install xmlstarlet and try again"
 fi
 
-# Check if op is installed
-if [[ $(type op) ]] &>/dev/null
- then
-   success "1Password CLI is installed"
-   OP_INSTALLED=true
- else
-   info "1Password CLI is not installed, install 1Password CLI to enable this feature"
-   OP_INSTALLED=false
-fi
-
 export CONF="${HOME}/.assumerole"
 AVAILABLE_PROFILES=$(jq --raw-output ".assume_roles | to_entries[] | .key"  "${CONF}")
 
@@ -344,6 +334,16 @@ then
   GetAccountName "$@"
   PrintAccountInfo
   exit 0
+fi
+
+# Check if op is installed
+if [[ $(type op) ]] &>/dev/null
+ then
+   success "1Password CLI is installed"
+   OP_INSTALLED=true
+ else
+   info "1Password CLI is not installed, install 1Password CLI to enable this feature"
+   OP_INSTALLED=false
 fi
 
 GetAccountName "$@"
