@@ -149,7 +149,7 @@ CreateCredentials() {
   [[ "${MAX_SESSION_DURATION}" = "null" ]] && MAX_SESSION_DURATION=${AWS_STS_DURATION_SECONDS:-3600}
 
   ### Get MFA token from commandline or ask for it
-  [[ "${OP_INSTALLED}" == "true" ]] && GetOtpInfo
+  if [[ "${OP_INSTALLED}" == "true" ]] && [[ -z ${2} ]]; then GetOtpInfo; fi
 
   if [[ -n ${2} ]]
   then
